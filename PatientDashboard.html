@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Patient Dashboard</title>
+
+    <!-- SB Admin CSS -->
+    <link href="css/all.min.css" rel="stylesheet" type="text/css">
+    <link href="https://fonts.googleapis.com/css?family=Nunito:200,300,400,600,700,800,900" rel="stylesheet">
+    <link href="css/sb-admin-2.min.css" rel="stylesheet">
+
+    
+</head>
+
+<body id="page-top">
+
+    <div id="wrapper">
+
+        <!-- Sidebar -->
+        <ul class="navbar-nav bg-gradient-primary sidebar sidebar-dark accordion" id="accordionSidebar">
+
+            <a class="sidebar-brand d-flex align-items-center justify-content-center" href="#">
+                <div class="sidebar-brand-icon"><i class="fas fa-user-md"></i></div>
+                <div class="sidebar-brand-text mx-3">Patient Portal</div>
+            </a>
+
+            <hr class="sidebar-divider my-0">
+
+            <li class="nav-item active">
+                <a class="nav-link" href="#profile"><i class="fas fa-fw fa-user"></i><span>Profile</span></a>
+            </li>
+
+            <li class="nav-item">
+                <a class="nav-link" href="#medical"><i class="fas fa-fw fa-notes-medical"></i><span>Medical Records</span></a>
+            </li>
+
+            <li class="nav-item">
+                <a class="nav-link" href="#insurance"><i class="fas fa-fw fa-shield-alt"></i><span>Insurance</span></a>
+            </li>
+
+            <li class="nav-item">
+                <a class="nav-link" href="#ai"><i class="fas fa-fw fa-robot"></i><span>AI Insights</span></a>
+            </li>
+
+            <hr class="sidebar-divider d-none d-md-block">
+        </ul>
+
+        <!-- Content Wrapper -->
+        <div id="content-wrapper" class="d-flex flex-column">
+            <div id="content">
+
+                <nav class="navbar navbar-expand navbar-light bg-white topbar mb-4 static-top shadow">
+                    <span class="font-weight-bold">Patient Dashboard</span>
+                </nav>
+
+                <div class="container-fluid">
+
+                    <!-- PROFILE -->
+                    <div id="profile"></div>
+                    <div class="card shadow mb-4 mt-3">
+                        <div class="card-header font-weight-bold">👤 Patient Profile</div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-sm-6"><b>Full Name:</b> John Doe</div>
+                                <div class="col-sm-6"><b>National ID:</b> 298XXXXX</div>
+                                <div class="col-sm-6"><b>Birthdate:</b> 1998-07-11</div>
+                                <div class="col-sm-6"><b>Gender:</b> Male</div>
+                                <div class="col-sm-6"><b>Phone:</b> +20 111 222 333</div>
+                                <div class="col-sm-6"><b>Email:</b> john@example.com</div>
+                                <div class="col-sm-12"><b>Address:</b> Cairo, Egypt</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- MEDICAL -->
+                    <div id="medical"></div>
+                    <div class="card shadow mb-4">
+                        <div class="card-header font-weight-bold">🩺 Medical Information</div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-sm-6"><b>Blood Type:</b> O+</div>
+                                <div class="col-sm-6"><b>Chronic Diseases:</b> Diabetes</div>
+                                <div class="col-sm-6"><b>Allergies:</b> Penicillin</div>
+                                <div class="col-sm-6"><b>Medications:</b> Metformin</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- MEDICAL RECORDS -->
+                    <div class="card shadow mb-4">
+                        <div class="card-header font-weight-bold">📁 Medical Records</div>
+                        <div class="card-body">
+                            <b>Visit History:</b>
+                            <ul class="mt-2">
+                                <li>2025-02-12 — El Salam Hospital</li>
+                                <li>2025-01-03 — Misr Medical Center</li>
+                            </ul>
+                            <hr>
+                            <b>Medical Reports:</b> <button class="btn btn-sm btn-outline-secondary">View Reports</button><br><br>
+                            <b>Lab Results:</b> <button class="btn btn-sm btn-outline-secondary">View Labs</button><br><br>
+                            <b>Radiology:</b> <button class="btn btn-sm btn-outline-secondary">View Images</button><br><br>
+                            <b>Prescriptions:</b>
+                            <ul class="mt-2">
+                                <li>Ibuprofen 400mg</li>
+                                <li>Vitamin D</li>
+                            </ul>
+                            <hr>
+                            <b>Discharge Summaries:</b>
+                            <button class="btn btn-sm btn-outline-secondary">View Summaries</button>
+                        </div>
+                    </div>
+
+                    <!-- INSURANCE -->
+                    <div id="insurance"></div>
+                    <div class="card shadow mb-4">
+                        <div class="card-header font-weight-bold">🛡 Insurance Information</div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-sm-6"><b>Provider:</b> AXA Insurance</div>
+                                <div class="col-sm-6"><b>Plan:</b> Premium+</div>
+                                <div class="col-sm-6"><b>Status:</b> Active</div>
+                                <div class="col-sm-6"><b>Coverage:</b> 90%</div>
+                            </div>
+                            <hr>
+                            <b>Claims Overview:</b>
+                            <ul>
+                                <li>Pending: 1</li>
+                                <li>Approved: 4</li>
+                                <li>Rejected: 0</li>
+                            </ul>
+                            <hr>
+                            <b>Claim Timeline:</b>
+                            <div class="border-left pl-3">
+                                <div>2025-02-13 — Submitted (Pending)</div>
+                                <div>2025-01-10 — Approved (Paid)</div>
+                                <div>2024-12-05 — Approved</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- AI -->
+                    <div id="ai"></div>
+                    <div class="card shadow mb-4">
+                        <div class="card-header font-weight-bold">🤖 AI Health Insights</div>
+                        <div class="card-body">
+                            <b>Epidemic Risk:</b> Low<br>
+                            <b>Recommendations:</b>
+                            <ul class="mt-2">
+                                <li>Increase physical activity</li>
+                                <li>Quarterly checkups</li>
+                                <li>Monitor blood sugar levels</li>
+                            </ul>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+            <!-- CLAIM REQUEST -->
+<div id="claim"></div>
+<div class="card shadow mb-4">
+    <div class="card-header font-weight-bold">📝 Request Insurance Claim</div>
+    <div class="card-body">
+        <form id="claimForm">
+            <div class="row">
+                <div class="col-sm-6">
+                    <label class="font-weight-bold">Claim Type</label>
+                    <select class="form-control" name="claimType" required>
+                        <option value="" selected disabled>Select a claim type</option>
+                        <option value="tests">Medical Tests</option>
+                        <option value="xrays">X-Rays</option>
+                        <option value="surgery">Surgery</option>
+                    </select>
+                </div>
+
+                <div class="col-sm-6">
+                    <label class="font-weight-bold">Hospital / Clinic</label>
+                    <input type="text" class="form-control" name="provider" placeholder="Example: El Salam Hospital" required>
+                </div>
+
+                <div class="col-sm-12 mt-3">
+                    <label class="font-weight-bold">Description (Optional)</label>
+                    <textarea class="form-control" name="description" rows="3" placeholder="Describe the procedure or purpose..."></textarea>
+                </div>
+
+                <div class="col-sm-12 mt-3">
+                    <button type="submit" class="btn btn-primary btn-sm">Submit Claim Request</button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+
+            <footer class="sticky-footer bg-white">
+                <div class="my-auto text-center"><span>Smart-Connect © 2026</span></div>
+            </footer>
+        </div>
+    </div>
+    
+
+    <!-- Scripts -->
+    <script src="Js/jquery.min.js"></script>
+    <script src="Js/bootstrap.bundle.min.js"></script>
+    <script src="Js/jquery.easing.min.js"></script>
+    <script src="Js/sb-admin-2.min.js"></script>
+
+    <script>
+        const sections = {
+            profile: document.querySelector("#profile"),
+            medical: document.querySelector("#medical"),
+            insurance: document.querySelector("#insurance"),
+            ai: document.querySelector("#ai"),
+        };
+
+        window.addEventListener("scroll", () => {
+            for (let key in sections) {
+                let section = sections[key];
+                if (section.getBoundingClientRect().top <= 120) {
+                    document.querySelectorAll(".nav-item").forEach(item => item.classList.remove("active"));
+                    document.querySelector(`a[href="#${key}"]`).parentElement.classList.add("active");
+                }
+            }
+        });
+        document.getElementById("claimForm").addEventListener("submit", function(e) {
+    e.preventDefault();
+    alert("Your claim request has been submitted successfully!");
+});
+    </script>
+
+</body>
+</html>
