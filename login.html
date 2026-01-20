@@ -137,48 +137,57 @@
         document.getElementById(errorId).classList.remove("d-none");
     }
 
-    function handleAction() {
-        clearErrors();
-        let valid = true;
-        const role = document.getElementById("role").value;
-        
-        // Basic Name Validation
-        const nameVal = document.getElementById("fullName").value;
-        if (!/^[A-Za-z\s]{3,}$/.test(nameVal)) {
-            showError("fullName", "nameError");
+   function handleAction() {
+    clearErrors();
+    let valid = true;
+    const role = document.getElementById("role").value;
+    
+    // Basic Name Validation
+    const nameVal = document.getElementById("fullName").value;
+    if (!/^[A-Za-z\s]{3,}$/.test(nameVal)) {
+        showError("fullName", "nameError");
+        valid = false;
+    }
+
+    if (role === "patient") {
+        const nid = document.getElementById("nationalId").value;
+        const ph = document.getElementById("phone").value;
+
+        if (!/^[0-9]{14}$/.test(nid)) {
+            showError("nationalId", "nidError");
             valid = false;
         }
-
-        if (role === "patient") {
-            const nid = document.getElementById("nationalId").value;
-            const ph = document.getElementById("phone").value;
-
-            if (!/^[0-9]{14}$/.test(nid)) {
-                showError("nationalId", "nidError");
-                valid = false;
-            }
-            if (!/^(010|011|012|015)[0-9]{8}$/.test(ph)) {
-                showError("phone", "phoneError");
-                valid = false;
-            }
-        } else {
-            const mail = document.getElementById("email").value;
-            const pass = document.getElementById("password").value;
-
-            if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mail)) {
-                showError("email", "emailError");
-                valid = false;
-            }
-            if (pass.length < 6) {
-                showError("password", "passwordError");
-                valid = false;
-            }
+        if (!/^(010|011|012|015)[0-9]{8}$/.test(ph)) {
+            showError("phone", "phoneError");
+            valid = false;
         }
+    } else {
+        const mail = document.getElementById("email").value;
+        const pass = document.getElementById("password").value;
 
-        if (valid) {
-            alert("Success! Account created for " + role);
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mail)) {
+            showError("email", "emailError");
+            valid = false;
+        }
+        if (pass.length < 6) {
+            showError("password", "passwordError");
+            valid = false;
         }
     }
+
+    if (valid) {
+        // Redirect based on role
+        if (role === "patient") {
+            window.location.href = "PatientDashboard.html";
+        } 
+        else if (role === "hospital") {
+            window.location.href = "HospitalDashboard.html";
+        } 
+        else if (role === "insurance") {
+            window.location.href = "InsuranceDashboard.html";
+        }
+    }
+}
 </script>
 
 </body>
