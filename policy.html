@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Medical Insurance Policy Setup</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link href="css/policy.css" rel="stylesheet">
+
+  
+</head>
+<body>
+
+<div class="container">
+    <h2>Medical Insurance Policy Configuration</h2>
+
+    <!-- Patient Category -->
+    <fieldset>
+        <legend>Patient Category</legend>
+
+        <h4>VIP</h4>
+        <div class="row">
+            <div>
+                <label>Benefit Type</label>
+                <select>
+                    <option>Individual</option>
+                    <option>Company</option>
+                </select>
+            </div>
+
+            <div>
+                <label>Coverage (%)</label>
+                <input type="number" value="100">
+            </div>
+
+            <div>
+                <label>Threshold (EGP)</label>
+                <input type="number" value="5000000">
+            </div>
+        </div>
+
+        <h4>Normal</h4>
+        <div class="row">
+            <div>
+                <label>Benefit Type</label>
+                <select>
+                    <option>Individual</option>
+                    <option>Company</option>
+                </select>
+            </div>
+
+            <div>
+                <label>Coverage (%)</label>
+                <input type="number" value="80">
+            </div>
+
+            <div>
+                <label>Threshold (EGP)</label>
+                <input type="number" value="1000000">
+            </div>
+        </div>
+    </fieldset>
+
+    <!-- Medical Coverage -->
+    <fieldset>
+        <legend>Medical Coverage</legend>
+
+        <div class="checkbox-grid">
+            <label class="checkbox-item">
+                <input type="checkbox" checked> Inpatient
+            </label>
+
+            <label class="checkbox-item">
+                <input type="checkbox" checked> Outpatient
+            </label>
+
+            <label class="checkbox-item">
+                <input type="checkbox"> Maternity
+            </label>
+
+            <label class="checkbox-item">
+                <input type="checkbox"> Dental
+            </label>
+
+            <label class="checkbox-item">
+                <input type="checkbox"> Optical
+            </label>
+        </div>
+    </fieldset>
+
+    <!-- Financial Rules -->
+    <fieldset>
+        <legend>Financial Rules</legend>
+
+        <div class="row">
+            <div>
+                <label>Co-Payment (%)</label>
+                <input type="number" placeholder="e.g. 10">
+            </div>
+
+            <div>
+                <label>Deductible (EGP)</label>
+                <input type="number" placeholder="e.g. 500">
+            </div>
+
+            <div>
+                <label>Waiting Period (Months)</label>
+                <input type="number" placeholder="e.g. 6">
+            </div>
+        </div>
+    </fieldset>
+
+    <!-- Actions -->
+    <div class="actions">
+      <button onclick="savePolicy()">Save Policy</button>
+
+    </div>
+</div>
+
+<script>
+function savePolicy() {
+    // Mark policy as completed
+    localStorage.setItem("insurancePolicyCompleted", "true");
+
+    // Redirect to dashboard
+    window.location.href = "InsuranceDashboard.html";
+}
+</script>
+
+
+</body>
+</html>

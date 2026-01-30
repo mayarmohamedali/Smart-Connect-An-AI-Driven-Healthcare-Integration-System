@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Admin Dashboard</title>
+
+    <!-- SB Admin CSS -->
+    <link href="css/all.min.css" rel="stylesheet" type="text/css">
+    <link href="https://fonts.googleapis.com/css?family=Nunito:200,300,400,600,700,800,900" rel="stylesheet">
+    <link href="css/sb-admin-2.min.css" rel="stylesheet">
+
+    
+</head>
+
+<body id="page-top">
+
+    <div id="wrapper">
+
+        <!-- Sidebar -->
+        <ul class="navbar-nav sidebar sidebar-dark accordion" id="accordionSidebar">
+
+            <a class="sidebar-brand d-flex align-items-center justify-content-center" href="#">
+                <div class="sidebar-brand-icon"><i class="fas fa-user-shield"></i></div>
+                <div class="sidebar-brand-text mx-3">Admin Portal</div>
+            </a>
+
+            <hr class="sidebar-divider my-0">
+
+            <li class="nav-item active">
+                <a class="nav-link" href="#dashboard"><i class="fas fa-fw fa-tachometer-alt"></i><span>Dashboard</span></a>
+            </li>
+
+            <li class="nav-item">
+                <a class="nav-link" href="#users"><i class="fas fa-fw fa-users"></i><span>User Management</span></a>
+            </li>
+
+            <li class="nav-item">
+                <a class="nav-link" href="#reports"><i class="fas fa-fw fa-file-alt"></i><span>Reports</span></a>
+            </li>
+
+            <hr class="sidebar-divider d-none d-md-block">
+        </ul>
+
+        <!-- Content Wrapper -->
+        <div id="content-wrapper" class="d-flex flex-column">
+            <div id="content">
+
+                <nav class="navbar navbar-expand navbar-light bg-white topbar mb-4 static-top shadow">
+                    <span class="font-weight-bold">Admin Dashboard</span>
+                </nav>
+
+                <div class="container-fluid">
+
+                    <!-- DASHBOARD -->
+                    <div id="dashboard"></div>
+                    <div class="row mb-4">
+                        <div class="col-lg-3 col-md-6 mb-4">
+                            <div class="card shadow">
+                                <div class="card-header">Total Users</div>
+                                <div class="card-body">125</div>
+                            </div>
+                        </div>
+                        <div class="col-lg-3 col-md-6 mb-4">
+                            <div class="card shadow">
+                                <div class="card-header">Active Claims</div>
+                                <div class="card-body">34</div>
+                            </div>
+                        </div>
+                        <div class="col-lg-3 col-md-6 mb-4">
+                            <div class="card shadow">
+                                <div class="card-header">Pending Reports</div>
+                                <div class="card-body">12</div>
+                            </div>
+                        </div>
+                        <div class="col-lg-3 col-md-6 mb-4">
+                            <div class="card shadow">
+                                <div class="card-header">Total Payouts</div>
+                                <div class="card-body">$54,000</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- USER MANAGEMENT -->
+                    <div id="users"></div>
+                    <div class="card shadow mb-4">
+                        <div class="card-header font-weight-bold">👥 User Management</div>
+                        <div class="card-body">
+                            <button class="btn btn-success mb-3">Add New User</button>
+                            <div class="table-responsive">
+                                <table class="table table-bordered">
+                                    <thead>
+                                        <tr>
+                                            <th>User ID</th>
+                                            <th>Name</th>
+                                            <th>Email</th>
+                                            <th>Role</th>
+                                            <th>Status</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr>
+                                            <td>U001</td>
+                                            <td>John Doe</td>
+                                            <td>john@example.com</td>
+                                            <td>Patient</td>
+                                            <td>Active</td>
+                                            <td>
+                                                <button class="btn btn-sm btn-primary">Edit</button>
+                                                <button class="btn btn-sm btn-danger">Delete</button>
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td>U002</td>
+                                            <td>Jane Smith</td>
+                                            <td>jane@example.com</td>
+                                            <td>Hospital</td>
+                                            <td>Active</td>
+                                            <td>
+                                                <button class="btn btn-sm btn-primary">Edit</button>
+                                                <button class="btn btn-sm btn-danger">Delete</button>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- REPORTS -->
+                    <div id="reports"></div>
+                    <div class="card shadow mb-4">
+                        <div class="card-header font-weight-bold">📊 Reports</div>
+                        <div class="card-body">
+                            <button class="btn btn-info mb-3">Generate User Report</button>
+                            <button class="btn btn-warning mb-3">Generate Claims Report</button>
+                            <button class="btn btn-secondary mb-3">Generate Financial Report</button>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+            <footer class="sticky-footer bg-white">
+                <div class="my-auto text-center"><span>Smart-Connect © 2026</span></div>
+            </footer>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="Js/jquery.min.js"></script>
+    <script src="Js/bootstrap.bundle.min.js"></script>
+    <script src="Js/jquery.easing.min.js"></script>
+    <script src="Js/sb-admin-2.min.js"></script>
+
+    <script>
+        const sections = {
+            dashboard: document.querySelector("#dashboard"),
+            users: document.querySelector("#users"),
+            reports: document.querySelector("#reports"),
+        };
+
+        window.addEventListener("scroll", () => {
+            for (let key in sections) {
+                let section = sections[key];
+                if (section.getBoundingClientRect().top <= 120) {
+                    document.querySelectorAll(".nav-item").forEach(item => item.classList.remove("active"));
+                    document.querySelector(`a[href="#${key}"]`).parentElement.classList.add("active");
+                }
+            }
+        });
+    </script>
+</body>
+</html>
