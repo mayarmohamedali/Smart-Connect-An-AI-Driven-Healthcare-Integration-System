@@ -175,18 +175,28 @@
         }
     }
 
-    if (valid) {
-        // Redirect based on role
-        if (role === "patient") {
-            window.location.href = "PatientDashboard.html";
-        } 
-        else if (role === "hospital") {
-            window.location.href = "HospitalDashboard.html";
-        } 
-        else if (role === "insurance") {
+   if (valid) {
+    if (role === "patient") {
+        window.location.href = "PatientDashboard.html";
+    } 
+    else if (role === "hospital") {
+        window.location.href = "HospitalDashboard.html";
+    } 
+    else if (role === "insurance") {
+
+        // Check if policy setup already done
+        const policyCompleted = localStorage.getItem("insurancePolicyCompleted");
+
+        if (!policyCompleted) {
+            // First time login → go to policy setup
+            window.location.href = "policy.html";
+        } else {
+            // Already completed → go to dashboard
             window.location.href = "InsuranceDashboard.html";
         }
     }
+}
+
 }
 </script>
 

@@ -111,9 +111,21 @@
 
     <!-- Actions -->
     <div class="actions">
-        <button type="submit">Save Policy</button>
+      <button onclick="savePolicy()">Save Policy</button>
+
     </div>
 </div>
+
+<script>
+function savePolicy() {
+    // Mark policy as completed
+    localStorage.setItem("insurancePolicyCompleted", "true");
+
+    // Redirect to dashboard
+    window.location.href = "InsuranceDashboard.html";
+}
+</script>
+
 
 </body>
 </html>
