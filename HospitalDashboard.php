@@ -1,3 +1,11 @@
+<?php
+session_start();
+if (!isset($_SESSION["auth_type"]) || $_SESSION["auth_type"] !== "staff" || ($_SESSION["role"] ?? "") !== "HOSPITAL_STAFF") {
+  header("Location: login.html");
+  exit;
+}
+?>
+
 <!DOCTYPE html>
 <html lang="en">
 

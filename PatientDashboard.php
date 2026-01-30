@@ -1,5 +1,15 @@
+<?php
+session_start();
+if (!isset($_SESSION["auth_type"]) || $_SESSION["auth_type"] !== "patient") {
+  header("Location: login.html");
+  exit;
+}
+?>
+
 <!DOCTYPE html>
 <html lang="en">
+
+
 
 <head>
     <meta charset="UTF-8">
