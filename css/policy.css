@@ -1,0 +1,117 @@
+  
+        * {
+            box-sizing: border-box;
+            font-family: "Segoe UI", Tahoma, sans-serif;
+        }
+
+        body {
+            background: #eef3f9;
+            margin: 0;
+            padding: 40px 0;
+        }
+
+        .container {
+            max-width: 760px;
+            margin: auto;
+            background: #fff;
+            padding: 26px 30px;
+            border-radius: 16px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+        }
+
+        h2 {
+            text-align: center;
+            color: #0b3a82;
+            margin-bottom: 26px;
+        }
+
+        fieldset {
+            border: none;
+            background: #f9fbfe;
+            border-radius: 14px;
+            padding: 22px;
+            margin-bottom: 26px;
+        }
+
+        legend {
+            font-weight: 600;
+            color: #0b3a82;
+            padding: 0 6px;
+            font-size: 15px;
+        }
+
+        h4 {
+            margin-top: 22px;
+            margin-bottom: 12px;
+            font-size: 14px;
+            color: #333;
+        }
+
+        label {
+            font-size: 12px;
+            color: #444;
+            margin-bottom: 6px;
+            display: block;
+        }
+
+        .row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 14px;
+            margin-bottom: 20px; /* FIX OVERLAP */
+        }
+
+        input,
+        select {
+            width: 100%;
+            padding: 9px 10px;
+            font-size: 13px;
+            border-radius: 8px;
+            border: 1px solid #d6deeb;
+            background: #fff;
+        }
+
+        input:focus,
+        select:focus {
+            outline: none;
+            border-color: #2f7cf6;
+        }
+
+        .checkbox-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 12px;
+            margin-top: 10px;
+        }
+
+        .checkbox-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 12px;
+            background: #fff;
+            border-radius: 10px;
+            border: 1px solid #e0e7f2;
+            font-size: 13px;
+        }
+
+        .actions {
+            text-align: center;
+            margin-top: 10px;
+        }
+
+        button {
+            background: linear-gradient(135deg, #2f7cf6, #0b3a82);
+            color: #fff;
+            padding: 11px 36px;
+            font-size: 14px;
+            border: none;
+            border-radius: 22px;
+            cursor: pointer;
+            transition: 0.3s ease;
+        }
+
+        button:hover {
+            opacity: 0.9;
+        }
+ 
