@@ -19,7 +19,7 @@ print("Libraries loaded. (Proceeding with internal Class Weight balancing)")
 # %% [2] Load & Clean Data
 # Load the dataset
 # NOTE: Ensure the file name matches exactly what is in your folder
-df = pd.read_excel('raian1000.xlsx')
+df = pd.read_csv('raian1000csv.csv')
 
 # 1. Drop Identifiers (They confuse the model)
 df = df.drop(columns=['ID', 'Name'], errors='ignore')
@@ -46,4 +46,5 @@ for col in df.columns:
 
 print(f"Data Loaded & Cleaned. Rows: {df.shape[0]}, Columns: {df.shape[1]}")
 print("Unique Diagnoses:", df['Diagnosis'].nunique())
+
 # %%
