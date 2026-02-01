@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Patient Lookup</title>
+    <link href="css/all.min.css" rel="stylesheet">
+    <link href="css/sb-admin-2.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css?family=Poppins:300,400,500,600,700" rel="stylesheet">
+
+    <style>
+        body {
+            background: #f5f7fb;
+            font-family: 'Poppins', sans-serif;
+        }
+
+        .container-wrapper {
+            max-width: 950px;
+            margin: auto;
+            padding: 40px 15px;
+        }
+
+        .card-section {
+            background: white;
+            border-radius: 14px;
+            padding: 25px;
+            margin-top: 20px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.06);
+            display: none;
+            animation: fade 0.3s ease;
+        }
+
+        @keyframes fade {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .section-title {
+            font-weight: 600;
+            font-size: 18px;
+            margin-bottom: 15px;
+        }
+
+        .info-row {
+            display: flex;
+            flex-wrap: wrap;
+            margin-bottom: 10px;
+        }
+
+        .info-col {
+            flex: 1 1 50%;
+            font-size: 14px;
+            margin-bottom: 6px;
+        }
+
+        .actions-area {
+            margin-top: 25px;
+        }
+
+        .action-btn {
+            width: 100%;
+            margin-bottom: 8px;
+            border-radius: 8px;
+            padding: 10px;
+        }
+    </style>
+</head>
+
+<body>
+
+<div class="container-wrapper">
+
+    <!-- Search Box -->
+    <div class="card p-4">
+        <h4 class="mb-3">Lookup Patient</h4>
+        <div class="input-group">
+            <input type="text" id="nationalId" class="form-control" placeholder="Enter National ID">
+            <div class="input-group-append">
+                <button class="btn btn-primary" onclick="searchPatient()">Search</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Profile Section -->
+    <div id="profileCard" class="card-section">
+        <div class="section-title">Patient Profile</div>
+        <div id="profileContent"></div>
+    </div>
+
+    <!-- Medical Info Section -->
+    <div id="medicalInfoCard" class="card-section">
+        <div class="section-title">Medical Information</div>
+        <div id="medicalInfoContent"></div>
+    </div>
+
+    <!-- Records Section -->
+    <div id="recordsCard" class="card-section">
+        <div class="section-title"> Visit History</div>
+        <div id="recordsContent"></div>
+    </div>
+
+    <!-- Actions Section -->
+    <div id="actionsCard" class="card-section">
+        <div class="section-title">Actions</div>
+
+        <div class="actions-area">
+            <button class="btn btn-info action-btn">Create Medical Record</button>
+            <button class="btn btn-warning action-btn">Upload Diagnostics</button>
+            <button class="btn btn-success action-btn">Generate Prescription</button>
+            <button class="btn btn-secondary action-btn">Medical Records Submission</button>
+            <button class="btn btn-dark action-btn">Upload Lab Results</button>
+        </div>
+    </div>
+
+</div>
+
+<script>
+function searchPatient() {
+    const id = document.getElementById("nationalId").value;
+
+    // Mock demo data — replace later with DB fetch
+    if (id === "29812345678901") {
+
+        document.getElementById("profileContent").innerHTML = `
+            <div class="info-row">
+                <div class="info-col"><strong>Full Name:</strong> John Doe</div>
+                <div class="info-col"><strong>National ID:</strong> ${id}</div>
+                <div class="info-col"><strong>Birthdate:</strong> 1998-07-11</div>
+                <div class="info-col"><strong>Gender:</strong> Male</div>
+                <div class="info-col"><strong>Phone:</strong> +20 111 222 333</div>
+                <div class="info-col"><strong>Email:</strong> john@example.com</div>
+                <div class="info-col"><strong>Address:</strong> Cairo, Egypt</div>
+            </div>
+        `;
+
+        document.getElementById("medicalInfoContent").innerHTML = `
+            <div class="info-row">
+                <div class="info-col"><strong>Blood Type:</strong> O+</div>
+                <div class="info-col"><strong>Chronic Diseases:</strong> Diabetes</div>
+                <div class="info-col"><strong>Allergies:</strong> Penicillin</div>
+                <div class="info-col"><strong>Medications:</strong> Metformin</div>
+            </div>
+        `;
+
+        document.getElementById("recordsContent").innerHTML = `
+            <ul>
+                <li>2025-02-12 — El Salam Hospital</li>
+                <li>2025-01-03 — Misr Medical Center</li>
+            </ul>
+        `;
+
+        // Show cards
+        document.getElementById("profileCard").style.display = "block";
+        document.getElementById("medicalInfoCard").style.display = "block";
+        document.getElementById("recordsCard").style.display = "block";
+        document.getElementById("actionsCard").style.display = "block";
+
+    } else {
+        alert("Patient not found.");
+    }
+}
+</script>
+
+</body>
+</html>
