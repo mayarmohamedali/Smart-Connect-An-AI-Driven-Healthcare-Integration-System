@@ -240,6 +240,48 @@ ALTER TABLE `users`
   ADD CONSTRAINT `fk_users_roles` FOREIGN KEY (`role_id`) REFERENCES `roles` (`role_id`);
 COMMIT;
 
+-- Create database if not exists
+CREATE DATABASE IF NOT EXISTS smart_connect;
+USE smart_connect;
+
+-- Table for medical insurances (you already have this)
+CREATE TABLE IF NOT EXISTS medical_insurances (
+    insurance_id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    insurance_name VARCHAR(50) NOT NULL UNIQUE
+) ENGINE=InnoDB;
+
+-- Example insurances
+INSERT IGNORE INTO medical_insurances (insurance_name)
+VALUES ('Metlife'), ('Axa'), ('Allianz'), ('Buoa');
+
+-- Table for policies
+CREATE TABLE IF NOT EXISTS policies (
+    policy_id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    insurance_id INT UNSIGNED NOT NULL,
+    category ENUM('normal','vip') NOT NULL,
+    benefit_type ENUM('individual','company') NOT NULL,
+    annual_limit DECIMAL(10,2) DEFAULT NULL,
+    max_visits INT DEFAULT NULL,
+    company_size INT DEFAULT NULL,
+    annual_limit_per_employee DECIMAL(10,2) DEFAULT NULL,
+    private_hospitals_access TINYINT(1) DEFAULT NULL,
+    vip_network_access TINYINT(1) DEFAULT NULL,
+    FOREIGN KEY (insurance_id) REFERENCES medical_insurances(insurance_id)
+) ENGINE=InnoDB;
+
+-- Table for service rules
+CREATE TABLE IF NOT EXISTS policy_services (
+    service_id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    policy_id INT UNSIGNED NOT NULL,
+    service_name ENUM('checkup','operations','maternity','dental','optical') NOT NULL,
+    coverage DECIMAL(5,2) NOT NULL,
+    threshold DECIMAL(10,2) NOT NULL,
+    co_payment DECIMAL(5,2) NOT NULL,
+    deductible DECIMAL(10,2) NOT NULL,
+    FOREIGN KEY (policy_id) REFERENCES policies(policy_id)
+) ENGINE=InnoDB;
+
+
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
 /*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
