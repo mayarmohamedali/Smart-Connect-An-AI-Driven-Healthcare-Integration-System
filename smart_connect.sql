@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Jan 30, 2026 at 07:51 AM
+-- Generation Time: Feb 02, 2026 at 12:27 PM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.2.12
 
@@ -74,6 +74,57 @@ INSERT INTO `medical_insurances` (`insurance_id`, `name`, `regulatory_id`, `addr
 -- --------------------------------------------------------
 
 --
+-- Table structure for table `medical_records`
+--
+
+CREATE TABLE `medical_records` (
+  `record_id` int(10) UNSIGNED NOT NULL,
+  `patient_id` int(10) UNSIGNED NOT NULL,
+  `age` int(11) DEFAULT NULL,
+  `checkin_date` date DEFAULT NULL,
+  `checkout_date` date DEFAULT NULL,
+  `cbc_hb1` decimal(5,2) DEFAULT NULL,
+  `cbc_tlc1` decimal(7,2) DEFAULT NULL,
+  `cbc_plat1` decimal(10,2) DEFAULT NULL,
+  `blood_uria1` decimal(7,2) DEFAULT NULL,
+  `blood_creatinine1` decimal(7,2) DEFAULT NULL,
+  `cbc_hb2` decimal(5,2) DEFAULT NULL,
+  `cbc_tlc2` decimal(7,2) DEFAULT NULL,
+  `cbc_plat2` decimal(10,2) DEFAULT NULL,
+  `blood_uria2` decimal(7,2) DEFAULT NULL,
+  `blood_creatinine2` decimal(7,2) DEFAULT NULL,
+  `bmi` decimal(5,2) DEFAULT NULL,
+  `glucose` decimal(7,2) DEFAULT NULL,
+  `systolic_bp` int(11) DEFAULT NULL,
+  `month` tinyint(4) DEFAULT NULL,
+  `admission_count` int(11) DEFAULT NULL,
+  `avg_creatinine` decimal(7,2) DEFAULT NULL,
+  `avg_urea` decimal(7,2) DEFAULT NULL,
+  `avg_hb` decimal(5,2) DEFAULT NULL,
+  `avg_tlc` decimal(7,2) DEFAULT NULL,
+  `avg_platelets` decimal(10,2) DEFAULT NULL,
+  `length_of_stay` int(11) DEFAULT NULL,
+  `smoking_status` enum('Non-Smoker','Smoker','Former Smoker') DEFAULT NULL,
+  `physical_activity_level` enum('Low','Moderate','High') DEFAULT NULL,
+  `has_diabetes` tinyint(1) NOT NULL DEFAULT 0,
+  `has_hypertension` tinyint(1) NOT NULL DEFAULT 0,
+  `has_kidney_disease` tinyint(1) NOT NULL DEFAULT 0,
+  `has_heart_disease` tinyint(1) NOT NULL DEFAULT 0,
+  `diagnosis` varchar(255) DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `medical_records`
+--
+
+INSERT INTO `medical_records` (`record_id`, `patient_id`, `age`, `checkin_date`, `checkout_date`, `cbc_hb1`, `cbc_tlc1`, `cbc_plat1`, `blood_uria1`, `blood_creatinine1`, `cbc_hb2`, `cbc_tlc2`, `cbc_plat2`, `blood_uria2`, `blood_creatinine2`, `bmi`, `glucose`, `systolic_bp`, `month`, `admission_count`, `avg_creatinine`, `avg_urea`, `avg_hb`, `avg_tlc`, `avg_platelets`, `length_of_stay`, `smoking_status`, `physical_activity_level`, `has_diabetes`, `has_hypertension`, `has_kidney_disease`, `has_heart_disease`, `diagnosis`, `created_at`) VALUES
+(1, 10, 30, '2026-01-28', '2026-02-01', 3.00, 4.00, 4.00, 6.00, 6.00, 2.00, 4.00, 6.00, 6.00, 2.00, 12.00, 23.00, 4, 1, 6, 5.00, 6.00, 7.00, 8.00, 6.00, 5, '', 'Moderate', 1, 0, 0, 0, 'diabetes', '2026-02-02 09:45:38'),
+(3, 11, 40, '2026-02-01', '2026-02-03', 3.00, 4.00, 4.00, 6.00, 6.00, 2.00, 5.00, 7.00, 8.00, 12.00, 12.00, 23.00, 5, 2, 6, 5.00, 6.00, 7.00, 8.00, 6.00, 5, 'Non-Smoker', 'Low', 1, 0, 0, 0, 'hypertensi', '2026-02-02 10:48:28');
+
+-- --------------------------------------------------------
+
+--
 -- Table structure for table `patients`
 --
 
@@ -98,7 +149,9 @@ INSERT INTO `patients` (`patient_id`, `full_name`, `national_id`, `phone`, `date
 (6, 'Ahmed Hassan', '30304050100987', '01012345678', NULL, 'M', 'Cairo', 1, 1, '2026-01-30 05:58:47'),
 (7, 'Sara Mohamed', '29802022345678', '01198765432', NULL, 'F', 'Giza', 2, 1, '2026-01-30 05:58:47'),
 (8, 'Omar Khaled', '30003033456789', '01234567890', NULL, 'M', 'Alexandria', 3, 1, '2026-01-30 05:58:47'),
-(9, 'Mona Adel', '29704044567890', '01511223344', NULL, 'F', 'Nasr City', 4, 1, '2026-01-30 05:58:47');
+(9, 'Mona Adel', '29704044567890', '01511223344', NULL, 'F', 'Nasr City', 4, 1, '2026-01-30 05:58:47'),
+(10, 'Maya Mohamed', '40404070100464', '01003147823', NULL, 'F', 'fifth settlement', 1, 1, '2026-02-02 09:18:33'),
+(11, 'ahmed amr', '50507010200345', '01003458799', NULL, 'M', 'nasr city', 1, 1, '2026-02-02 10:37:51');
 
 -- --------------------------------------------------------
 
@@ -172,6 +225,14 @@ ALTER TABLE `medical_insurances`
   ADD UNIQUE KEY `name` (`name`);
 
 --
+-- Indexes for table `medical_records`
+--
+ALTER TABLE `medical_records`
+  ADD PRIMARY KEY (`record_id`),
+  ADD KEY `idx_medrec_patient` (`patient_id`),
+  ADD KEY `idx_medrec_checkin` (`checkin_date`);
+
+--
 -- Indexes for table `patients`
 --
 ALTER TABLE `patients`
@@ -212,10 +273,16 @@ ALTER TABLE `medical_insurances`
   MODIFY `insurance_id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
 
 --
+-- AUTO_INCREMENT for table `medical_records`
+--
+ALTER TABLE `medical_records`
+  MODIFY `record_id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
+
+--
 -- AUTO_INCREMENT for table `patients`
 --
 ALTER TABLE `patients`
-  MODIFY `patient_id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=10;
+  MODIFY `patient_id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=12;
 
 --
 -- AUTO_INCREMENT for table `roles`
@@ -234,53 +301,17 @@ ALTER TABLE `users`
 --
 
 --
+-- Constraints for table `medical_records`
+--
+ALTER TABLE `medical_records`
+  ADD CONSTRAINT `fk_medrec_patient` FOREIGN KEY (`patient_id`) REFERENCES `patients` (`patient_id`) ON DELETE CASCADE;
+
+--
 -- Constraints for table `users`
 --
 ALTER TABLE `users`
   ADD CONSTRAINT `fk_users_roles` FOREIGN KEY (`role_id`) REFERENCES `roles` (`role_id`);
 COMMIT;
-
--- Create database if not exists
-CREATE DATABASE IF NOT EXISTS smart_connect;
-USE smart_connect;
-
--- Table for medical insurances (you already have this)
-CREATE TABLE IF NOT EXISTS medical_insurances (
-    insurance_id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    insurance_name VARCHAR(50) NOT NULL UNIQUE
-) ENGINE=InnoDB;
-
--- Example insurances
-INSERT IGNORE INTO medical_insurances (insurance_name)
-VALUES ('Metlife'), ('Axa'), ('Allianz'), ('Buoa');
-
--- Table for policies
-CREATE TABLE IF NOT EXISTS policies (
-    policy_id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    insurance_id INT UNSIGNED NOT NULL,
-    category ENUM('normal','vip') NOT NULL,
-    benefit_type ENUM('individual','company') NOT NULL,
-    annual_limit DECIMAL(10,2) DEFAULT NULL,
-    max_visits INT DEFAULT NULL,
-    company_size INT DEFAULT NULL,
-    annual_limit_per_employee DECIMAL(10,2) DEFAULT NULL,
-    private_hospitals_access TINYINT(1) DEFAULT NULL,
-    vip_network_access TINYINT(1) DEFAULT NULL,
-    FOREIGN KEY (insurance_id) REFERENCES medical_insurances(insurance_id)
-) ENGINE=InnoDB;
-
--- Table for service rules
-CREATE TABLE IF NOT EXISTS policy_services (
-    service_id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    policy_id INT UNSIGNED NOT NULL,
-    service_name ENUM('checkup','operations','maternity','dental','optical') NOT NULL,
-    coverage DECIMAL(5,2) NOT NULL,
-    threshold DECIMAL(10,2) NOT NULL,
-    co_payment DECIMAL(5,2) NOT NULL,
-    deductible DECIMAL(10,2) NOT NULL,
-    FOREIGN KEY (policy_id) REFERENCES policies(policy_id)
-) ENGINE=InnoDB;
-
 
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
 /*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;

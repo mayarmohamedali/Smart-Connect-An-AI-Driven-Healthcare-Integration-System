@@ -7,6 +7,23 @@ if (!isset($_SESSION["auth_type"]) || $_SESSION["auth_type"] !== "staff" || ($_S
 
 require_once "db.php";
 
+
+
+
+// KPI: Number of patients for this hospital
+$stmt = $conn->prepare("
+  SELECT COUNT(*) AS total_patients
+  FROM patients
+  WHERE added_by_hospital_id = ?
+");
+$stmt->bind_param("i", $hospital_id);
+$stmt->execute();
+$result = $stmt->get_result()->fetch_assoc();
+$stmt->close();
+
+$kpi_patients = $result["total_patients"] ?? 0;
+
+
 /*
   ✅ If you have hospital_id in session it will be used.
   If not, we use 1 temporarily so the system works now.
@@ -153,7 +170,7 @@ $stmt->close();
         <li class="nav-item"><a class="nav-link" href="#patients"><i class="fas fa-user-injured mr-1"></i> Patients</a></li>
         <li class="nav-item"><a class="nav-link" href="#claims"><i class="fas fa-file-invoice-dollar mr-1"></i> Claims</a></li>
         <li class="nav-item"><a class="nav-link" href="#insights"><i class="fas fa-chart-line mr-1"></i> Insights</a></li>
-        <li class="nav-item"><a class="nav-link" href="#profile"><i class="fas fa-hospital mr-1"></i> Hospital Profile</a></li>
+      
         <li class="nav-item"><a class="nav-link" href="#staff"><i class="fas fa-user-shield mr-1"></i> Staff</a></li>
       </ul>
 
@@ -168,7 +185,9 @@ $stmt->close();
 
           </a>
           <div class="dropdown-menu dropdown-menu-right shadow animated--grow-in" aria-labelledby="userDropdown">
-            <a class="dropdown-item" href="#profile"><i class="fas fa-hospital fa-sm fa-fw mr-2 text-gray-400"></i> Profile</a>
+           <a class="dropdown-item" href="HospitalProfile.php">
+  <i class="fas fa-user mr-2"></i> Profile
+</a>
             <div class="dropdown-divider"></div>
             <a class="dropdown-item" href="logout.php">
               <i class="fas fa-sign-out-alt fa-sm fa-fw mr-2 text-gray-400"></i> Logout
@@ -198,8 +217,12 @@ $stmt->close();
       <div class="col-xl-3 col-md-6 mb-4">
         <div class="card border-left-primary shadow h-100 py-2">
           <div class="card-body">
-            <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">Patients Added</div>
-            <div class="h5 mb-0 font-weight-bold text-gray-800"><?= (int)$kpi_patients ?></div>
+            <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
+  Total Patients
+</div>
+<div class="h5 mb-0 font-weight-bold text-gray-800">
+  <?= (int)$kpi_patients ?>
+</div>
           </div>
         </div>
       </div>
@@ -315,7 +338,7 @@ $stmt->close();
                       <th>National ID</th>
                       <th>Phone</th>
                       <th>Gender</th>
-                      <th>Status</th>
+                      <th>Medical Record</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -327,12 +350,17 @@ $stmt->close();
                         <td><?= htmlspecialchars($pt["phone"]) ?></td>
                         <td><?= htmlspecialchars($pt["gender"]) ?></td>
                         <td>
-                          <?php if ((int)$pt["is_active"] === 1): ?>
-                            <span class="badge badge-active text-white">Active</span>
-                          <?php else: ?>
-                            <span class="badge badge-inactive text-white">Inactive</span>
-                          <?php endif; ?>
-                        </td>
+  <a class="btn btn-sm btn-primary"
+     href="AddMedicalRecord.php?patient_id=<?= (int)$pt["patient_id"] ?>">
+    <i class="fas fa-notes-medical mr-1"></i> Add Record
+  </a>
+
+  <a class="btn btn-sm btn-outline-secondary ml-2"
+     href="ViewMedicalRecords.php?patient_id=<?= (int)$pt["patient_id"] ?>">
+    <i class="fas fa-folder-open mr-1"></i> View
+  </a>
+</td>
+
                       </tr>
                     <?php endforeach; ?>
                   </tbody>
@@ -434,40 +462,7 @@ $stmt->close();
   </div>
 
   <!-- ================= PROFILE SECTION (keep your profile) ================= -->
-  <div id="profile" class="anchor-offset mt-4">
-    <h3 class="text-primary section-title mb-3">Hospital Profile</h3>
-
-    <div class="row">
-      <div class="col-lg-6 mb-4">
-        <div class="card shadow mb-4">
-          <div class="card-header py-3">
-            <h6 class="m-0 font-weight-bold text-primary">Hospital Profile</h6>
-          </div>
-          <div class="card-body">
-            <p><strong>Name:</strong> City Hospital</p>
-            <p><strong>Departments:</strong> Cardiology, Radiology, Neurology, Pediatrics</p>
-            <p><strong>Insurance Partners:</strong> Aetna, Blue Cross, United Healthcare</p>
-            <p><strong>Staff Roles:</strong> Doctors, Nurses, Admin, IT Support</p>
-          </div>
-        </div>
-      </div>
-
-      <div class="col-lg-6 mb-4">
-        <div class="card shadow mb-4">
-          <div class="card-header py-3">
-            <h6 class="m-0 font-weight-bold text-primary">Recent Activities</h6>
-          </div>
-          <div class="card-body">
-            <ul>
-              <li>New patient admitted: John Doe</li>
-              <li>Lab results uploaded: Jane Smith</li>
-              <li>Insurance claim approved: Patient #123</li>
-            </ul>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
+  
 
   <!-- ================= STAFF SECTION ================= -->
    
