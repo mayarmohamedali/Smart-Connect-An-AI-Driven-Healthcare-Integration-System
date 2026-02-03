@@ -17,12 +17,13 @@ if (!filter_var($email, FILTER_VALIDATE_EMAIL) || strlen($password) < 6) {
 
 /* ✅ Fetch full_name too */
 $stmt = $conn->prepare("
-  SELECT u.user_id, u.full_name, u.password_hash, u.role_id, r.role_name
+  SELECT u.user_id, u.full_name, u.password_hash, u.role_id, r.role_name, u.insurance_id
   FROM users u
   JOIN roles r ON r.role_id = u.role_id
   WHERE u.email=? AND u.is_active=1
   LIMIT 1
 ");
+
 $stmt->bind_param("s", $email);
 $stmt->execute();
 $res = $stmt->get_result();
@@ -54,14 +55,45 @@ if ($portal !== "" && isset($allowed[$portal]) && $allowed[$portal] !== $role) {
 $_SESSION["auth_type"]  = "staff";
 $_SESSION["user_id"]    = (int)$user["user_id"];
 $_SESSION["role"]       = $role;
-$_SESSION["staff_name"] = $user["full_name"];   // ✅ now navbar will show it
+$_SESSION["staff_name"] = $user["full_name"];
 
 /* ✅ OPTIONAL: auto-set hospital_id based on staff account (1..4) */
 if ($role === "HOSPITAL_STAFF") {
-  // Because your seed users are user_id 1..4 for hospital staff
-  // Map them to hospitals 1..4
   $_SESSION["hospital_id"] = (int)$user["user_id"];
 }
+
+/* ================================
+   ✅ ADDITION: Insurance policy check
+   ================================ */
+$policy_completed = null;
+
+if ($role === "INSURANCE_STAFF") {
+
+  $insurance_id = (int)($user["insurance_id"] ?? 0);
+  $_SESSION["insurance_id"] = $insurance_id;
+
+  if ($insurance_id <= 0) {
+    $policy_completed = 0;
+  } else {
+    $stmt = $conn->prepare("
+      SELECT policy_completed
+      FROM medical_insurances
+      WHERE insurance_id = ?
+      LIMIT 1
+    ");
+    $stmt->bind_param("i", $insurance_id);
+    $stmt->execute();
+    $res = $stmt->get_result();
+    $row = $res->fetch_assoc();
+    $stmt->close();
+
+    $policy_completed = (int)($row["policy_completed"] ?? 0);
+  }
+
+  $_SESSION["insurance_policy_completed"] = $policy_completed;
+}
+
+
 
 /* ✅ Redirect */
 $redirect = "landing_page.html";
@@ -69,4 +101,9 @@ if ($role === "HOSPITAL_STAFF")  $redirect = "HospitalDashboard.php";
 if ($role === "INSURANCE_STAFF") $redirect = "InsuranceDashboard.php";
 if ($role === "ADMIN")           $redirect = "AdminDashboard.php";
 
-echo json_encode(["ok" => true, "redirect" => $redirect]);
+/* ✅ Final response */
+echo json_encode([
+  "ok" => true,
+  "redirect" => $redirect,
+  "policy_completed" => $policy_completed
+]);

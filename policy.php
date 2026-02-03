@@ -24,27 +24,36 @@
     <form method="POST" action="save_policy.php">
 
         <!-- POLICY TYPE -->
-        <fieldset>
-            <legend>Policy Type</legend>
-            <div class="row">
-                <div>
-                    <label>Category</label>
-                    <select id="policyCategory" name="policyCategory" onchange="togglePolicy()">
-                        <option value="">-- Select --</option>
-                        <option value="normal">Normal</option>
-                        <option value="vip">VIP</option>
-                    </select>
-                </div>
-                <div>
-                    <label>Benefit Type</label>
-                    <select id="benefitType" name="benefitType" onchange="togglePolicy()">
-                        <option value="">-- Select --</option>
-                        <option value="individual">Individual</option>
-                        <option value="company">Company</option>
-                    </select>
-                </div>
-            </div>
-        </fieldset>
+  <fieldset>
+    <legend>Policy Type</legend>
+
+    <div class="row">
+        <div>
+            <label for="policyCategory">Category</label>
+            <select id="policyCategory"
+                    name="category_id"
+                    required
+                    onchange="togglePolicy()">
+                <option value="">-- Select --</option>
+                <option value="1">Normal</option>
+                <option value="2">VIP</option>
+            </select>
+        </div>
+
+        <div>
+            <label for="benefitType">Benefit Type</label>
+            <select id="benefitType"
+                    name="customer_type_id"
+                    required
+                    onchange="togglePolicy()">
+                <option value="">-- Select --</option>
+                <option value="1">Individual</option>
+                <option value="2">Company</option>
+            </select>
+        </div>
+    </div>
+</fieldset>
+
 
         <!-- NORMAL - INDIVIDUAL -->
         <fieldset id="normal-individual" class="d-none">

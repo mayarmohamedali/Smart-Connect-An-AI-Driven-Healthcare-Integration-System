@@ -1,83 +1,108 @@
 <?php
-// save_policy.php
+session_start();
+require_once "db.php"; // MUST be before using $pdo
 
-// Database connection
-$host = "localhost";
-$dbname = "smart_connect";
-$user = "root";   // replace with your DB user
-$pass = "";       // replace with your DB password
+$pdo = new PDO(
+    "mysql:host=localhost;dbname=smart_connect;charset=utf8mb4",
+    "root",
+    "",
+    [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
+);
 
-try {
-    $pdo = new PDO("mysql:host=$host;dbname=$dbname;charset=utf8mb4", $user, $pass);
-    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-} catch (PDOException $e) {
-    die("Database connection failed: " . $e->getMessage());
-}
+/* -----------------------------
+   1. Collect main identifiers
+------------------------------*/
+$insurance_id     = 1; // AXA for now (can be dropdown later)
+$category_id      = $_POST['category_id'];
+$customer_type_id = $_POST['customer_type_id'];
 
-// Collect POST data
-$category = $_POST['policyCategory'] ?? '';
-$benefit = $_POST['benefitType'] ?? '';
+$plan_name = "Plan {$insurance_id}-{$category_id}-{$customer_type_id}";
 
-// Normal Individual
-$annual_limit = $_POST['annual_limit'] ?? null;
-$max_visits = $_POST['max_visits'] ?? null;
-
-// Normal Company
-$company_size = $_POST['company_size'] ?? null;
-$annual_limit_per_employee = $_POST['annual_limit_per_employee'] ?? null;
-
-// VIP Individual
-$vip_annual_limit = $_POST['vip_annual_limit'] ?? null;
-$private_hospitals_access = isset($_POST['private_hospitals_access']) ? 1 : 0;
-
-// VIP Company
-$vip_company_size = $_POST['vip_company_size'] ?? null;
-$vip_annual_limit_per_employee = $_POST['vip_annual_limit_per_employee'] ?? null;
-$vip_network_access = isset($_POST['vip_network_access']) ? 1 : 0;
-
-// Insert into policies table
+/* -----------------------------
+   2. Create insurance plan
+------------------------------*/
 $stmt = $pdo->prepare("
-    INSERT INTO policies 
-    (insurance_id, category, benefit_type, annual_limit, max_visits, company_size, annual_limit_per_employee, private_hospitals_access, vip_network_access)
-    VALUES (:insurance_id, :category, :benefit_type, :annual_limit, :max_visits, :company_size, :annual_limit_per_employee, :private_hospitals_access, :vip_network_access)
+    INSERT INTO insurance_plan
+        (insurance_id, category_id, customer_type_id, plan_name)
+    VALUES
+        (?, ?, ?, ?)
+    ON DUPLICATE KEY UPDATE
+        plan_name = VALUES(plan_name)
 ");
 
-// Assuming insurance_id = 1 for demo, you can add a select dropdown for real
+$plan_name = "Plan {$insurance_id}-{$category_id}-{$customer_type_id}";
+
 $stmt->execute([
-    ':insurance_id' => 1,
-    ':category' => $category,
-    ':benefit_type' => $benefit,
-    ':annual_limit' => $annual_limit ?: $vip_annual_limit,
-    ':max_visits' => $max_visits,
-    ':company_size' => $company_size ?: $vip_company_size,
-    ':annual_limit_per_employee' => $annual_limit_per_employee ?: $vip_annual_limit_per_employee,
-    ':private_hospitals_access' => $private_hospitals_access,
-    ':vip_network_access' => $vip_network_access
+    $insurance_id,
+    $category_id,
+    $customer_type_id,
+    $plan_name
 ]);
 
-$policy_id = $pdo->lastInsertId();
+$update = $conn->prepare("
+    UPDATE medical_insurances
+    SET policy_completed = 1
+    WHERE insurance_id = ?
+");
+$update->execute([$insurance_id]);
 
-// Insert service rules
-$services = ['checkup','operations','maternity','dental','optical'];
 
-foreach ($services as $service) {
-    if(isset($_POST["coverage_$service"])){
-        $stmt = $pdo->prepare("
-            INSERT INTO policy_services 
-            (policy_id, service_name, coverage, threshold, co_payment, deductible)
-            VALUES (:policy_id, :service_name, :coverage, :threshold, :co_payment, :deductible)
-        ");
-        $stmt->execute([
-            ':policy_id' => $policy_id,
-            ':service_name' => $service,
-            ':coverage' => $_POST["coverage_$service"],
-            ':threshold' => $_POST["threshold_$service"],
-            ':co_payment' => $_POST["copay_$service"],
-            ':deductible' => $_POST["deductible_$service"]
-        ]);
+// Check if plan exists or get its ID after insert
+$stmt = $pdo->prepare("
+    SELECT id FROM insurance_plan
+    WHERE insurance_id = ? AND category_id = ? AND customer_type_id = ?
+");
+$stmt->execute([$insurance_id, $category_id, $customer_type_id]);
+$insurance_plan_id = $stmt->fetchColumn();
+
+
+/* -----------------------------
+   3. Service name → service.id
+------------------------------*/
+$serviceMap = [
+    'checkup'    => 1,
+    'operations' => 2,
+    'maternity'  => 3,
+    'dental'     => 4,
+    'optical'    => 5
+];
+
+/* -----------------------------
+   4. Insert service coverage
+------------------------------*/
+foreach ($serviceMap as $serviceName => $serviceId) {
+
+    if (!isset($_POST["coverage_$serviceName"])) {
+        continue;
     }
+
+ $stmt = $pdo->prepare("
+    INSERT INTO plan_service_coverage
+        (insurance_plan_id, service_id, is_enabled,
+         coverage_percent, threshold_egp,
+         copayment_percent, deductible_egp)
+    VALUES (?, ?, 1, ?, ?, ?, ?)
+    ON DUPLICATE KEY UPDATE
+        is_enabled = VALUES(is_enabled),
+        coverage_percent = VALUES(coverage_percent),
+        threshold_egp = VALUES(threshold_egp),
+        copayment_percent = VALUES(copayment_percent),
+        deductible_egp = VALUES(deductible_egp)
+");
+
+ $stmt->execute([
+    $insurance_plan_id,
+    $serviceId,
+    $_POST["coverage_$serviceName"],
+    $_POST["threshold_$serviceName"],
+    $_POST["copay_$serviceName"],
+    $_POST["deductible_$serviceName"]
+]);
+
 }
 
-// Redirect after save
+/* -----------------------------
+   5. Redirect
+------------------------------*/
 header("Location: InsuranceDashboard.php");
 exit;
