@@ -54,14 +54,19 @@ if ($portal !== "" && isset($allowed[$portal]) && $allowed[$portal] !== $role) {
 $_SESSION["auth_type"]  = "staff";
 $_SESSION["user_id"]    = (int)$user["user_id"];
 $_SESSION["role"]       = $role;
-$_SESSION["staff_name"] = $user["full_name"];   // ✅ now navbar will show it
+$_SESSION["staff_name"] = $user["full_name"];
 
-/* ✅ OPTIONAL: auto-set hospital_id based on staff account (1..4) */
+/* ✅ auto-set hospital_id based on staff account (1..4) */
 if ($role === "HOSPITAL_STAFF") {
-  // Because your seed users are user_id 1..4 for hospital staff
-  // Map them to hospitals 1..4
   $_SESSION["hospital_id"] = (int)$user["user_id"];
 }
+
+/* ✅ auto-set insurance_id based on staff account (5..8) */
+if ($role === "INSURANCE_STAFF") {
+  $_SESSION["insurance_id"] = (int)$user["user_id"] - 4; // 5->1, 6->2, 7->3, 8->4
+}
+
+
 
 /* ✅ Redirect */
 $redirect = "landing_page.html";
@@ -70,3 +75,4 @@ if ($role === "INSURANCE_STAFF") $redirect = "InsuranceDashboard.php";
 if ($role === "ADMIN")           $redirect = "AdminDashboard.php";
 
 echo json_encode(["ok" => true, "redirect" => $redirect]);
+exit;
