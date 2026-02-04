@@ -203,7 +203,7 @@
 
             try {
                 setLoading(true);
-
+      
                 const res = await fetch("staff_login.php", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
@@ -218,13 +218,13 @@
                 }
 
                 // Insurance first-time setup
-                if (role === "insurance") {
-                    const policyCompleted = localStorage.getItem("insurancePolicyCompleted");
-                    if (!policyCompleted) {
-                        window.location.href = "policy.html";
-                        return;
-                    }
-                }
+               if (role === "insurance") {
+    if (!data.policy_completed) {
+        window.location.href = "policy.php";
+        return;
+    }
+}
+
 
                 window.location.href = data.redirect || "landing_page.html";
 
