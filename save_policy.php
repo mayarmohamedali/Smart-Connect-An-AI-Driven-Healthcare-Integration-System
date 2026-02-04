@@ -60,12 +60,8 @@ if (!$insurance_plan_id) {
 }
 
 /* -----------------------------
-   3. Get checked services from form
+   3. Service name → service.id mapping
 ------------------------------*/
-// Get which services were actually checked
-$checkedServices = $_POST['coverage_services'] ?? [];
-
-// Service name → service.id mapping
 $serviceMap = [
     'checkup'    => 1,
     'operations' => 2,
@@ -75,31 +71,18 @@ $serviceMap = [
 ];
 
 /* -----------------------------
-   4. Delete existing coverages for this plan
-   (so we start fresh with only checked services)
+   4. Insert or update service coverage
 ------------------------------*/
-$stmt = $pdo->prepare("
-    DELETE FROM plan_service_coverage
-    WHERE insurance_plan_id = ?
-");
-$stmt->execute([$insurance_plan_id]);
-
-/* -----------------------------
-   5. Insert service coverage ONLY for checked services
-------------------------------*/
-foreach ($checkedServices as $serviceName) {
+foreach ($serviceMap as $serviceName => $serviceId) {
     
-    // Skip if service doesn't exist in our map
-    if (!isset($serviceMap[$serviceName])) {
+    // Check if this service has coverage data
+    if (!isset($_POST["coverage_$serviceName"])) {
         continue;
     }
-    
-    $serviceId = $serviceMap[$serviceName];
-    
-    // Get the coverage data for this service
-    $coverage   = $_POST["coverage_$serviceName"] ?? 0;
-    $threshold  = $_POST["threshold_$serviceName"] ?? 0;
-    $copay      = $_POST["copay_$serviceName"] ?? 0;
+
+    $coverage  = $_POST["coverage_$serviceName"] ?? 0;
+    $threshold = $_POST["threshold_$serviceName"] ?? 0;
+    $copay     = $_POST["copay_$serviceName"] ?? 0;
     $deductible = $_POST["deductible_$serviceName"] ?? 0;
 
     $stmt = $pdo->prepare("
@@ -108,6 +91,12 @@ foreach ($checkedServices as $serviceName) {
              coverage_percent, threshold_egp,
              copayment_percent, deductible_egp)
         VALUES (?, ?, 1, ?, ?, ?, ?)
+        ON DUPLICATE KEY UPDATE
+            is_enabled = VALUES(is_enabled),
+            coverage_percent = VALUES(coverage_percent),
+            threshold_egp = VALUES(threshold_egp),
+            copayment_percent = VALUES(copayment_percent),
+            deductible_egp = VALUES(deductible_egp)
     ");
 
     $stmt->execute([
@@ -121,7 +110,7 @@ foreach ($checkedServices as $serviceName) {
 }
 
 /* -----------------------------
-   6. Mark policy as completed for this insurance
+   5. Mark policy as completed for this insurance
 ------------------------------*/
 $update = $pdo->prepare("
     UPDATE medical_insurances
@@ -131,12 +120,12 @@ $update = $pdo->prepare("
 $update->execute([$insurance_id]);
 
 /* -----------------------------
-   7. Update session
+   6. Update session
 ------------------------------*/
 $_SESSION['insurance_policy_completed'] = 1;
 
 /* -----------------------------
-   8. Redirect
+   7. Redirect
 ------------------------------*/
 header("Location: InsuranceDashboard.php?success=1");
 exit;
