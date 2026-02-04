@@ -57,7 +57,7 @@ $_SESSION["user_id"]    = (int)$user["user_id"];
 $_SESSION["role"]       = $role;
 $_SESSION["staff_name"] = $user["full_name"];
 
-/* ✅ Set hospital_id for hospital staff */
+/* ✅ auto-set hospital_id based on staff account (1..4) */
 if ($role === "HOSPITAL_STAFF") {
   $_SESSION["hospital_id"] = (int)$user["user_id"];
 }
