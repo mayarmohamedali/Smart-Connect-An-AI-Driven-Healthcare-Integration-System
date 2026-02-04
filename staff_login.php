@@ -57,7 +57,7 @@ $_SESSION["user_id"]    = (int)$user["user_id"];
 $_SESSION["role"]       = $role;
 $_SESSION["staff_name"] = $user["full_name"];
 
-/* ✅ OPTIONAL: auto-set hospital_id based on staff account (1..4) */
+/* ✅ auto-set hospital_id based on staff account (1..4) */
 if ($role === "HOSPITAL_STAFF") {
   $_SESSION["hospital_id"] = (int)$user["user_id"];
 }
@@ -91,6 +91,9 @@ if ($role === "INSURANCE_STAFF") {
   }
 
   $_SESSION["insurance_policy_completed"] = $policy_completed;
+/* ✅ auto-set insurance_id based on staff account (5..8) */
+if ($role === "INSURANCE_STAFF") {
+  $_SESSION["insurance_id"] = (int)$user["user_id"] - 4; // 5->1, 6->2, 7->3, 8->4
 }
 
 
@@ -107,3 +110,5 @@ echo json_encode([
   "redirect" => $redirect,
   "policy_completed" => $policy_completed
 ]);
+echo json_encode(["ok" => true, "redirect" => $redirect]);
+exit;
