@@ -15,19 +15,24 @@ if (!filter_var($email, FILTER_VALIDATE_EMAIL) || strlen($password) < 6) {
   exit;
 }
 
+/* ✅ Fetch user (IMPORTANT: also fetch hospital_id & insurance_id) */
 /* ✅ Fetch user data including insurance_id */
 $stmt = $conn->prepare("
-  SELECT u.user_id, u.full_name, u.password_hash, u.role_id, r.role_name, u.insurance_id
+  SELECT
+    u.user_id,
+    u.full_name,
+    u.password_hash,
+    u.hospital_id,
+    u.insurance_id,
+    r.role_name
   FROM users u
   JOIN roles r ON r.role_id = u.role_id
   WHERE u.email=? AND u.is_active=1
   LIMIT 1
 ");
-
 $stmt->bind_param("s", $email);
 $stmt->execute();
-$res = $stmt->get_result();
-$user = $res->fetch_assoc();
+$user = $stmt->get_result()->fetch_assoc();
 $stmt->close();
 
 if (!$user || !password_verify($password, $user["password_hash"])) {
@@ -38,11 +43,11 @@ if (!$user || !password_verify($password, $user["password_hash"])) {
 
 $role = $user["role_name"];
 
-/* ✅ Portal restriction (hospital/insurance/admin) */
+/* ✅ Portal restriction */
 $allowed = [
-  "hospital"   => "HOSPITAL_STAFF",
-  "insurance"  => "INSURANCE_STAFF",
-  "admin"      => "ADMIN"
+  "hospital"  => "HOSPITAL_STAFF",
+  "insurance" => "INSURANCE_STAFF",
+  "admin"     => "ADMIN"
 ];
 
 if ($portal !== "" && isset($allowed[$portal]) && $allowed[$portal] !== $role) {
@@ -51,52 +56,35 @@ if ($portal !== "" && isset($allowed[$portal]) && $allowed[$portal] !== $role) {
   exit;
 }
 
+/* ✅ Save session */
 /* ✅ Save session data */
 $_SESSION["auth_type"]  = "staff";
 $_SESSION["user_id"]    = (int)$user["user_id"];
 $_SESSION["role"]       = $role;
 $_SESSION["staff_name"] = $user["full_name"];
 
-/* ✅ auto-set hospital_id based on staff account (1..4) */
+/* ✅ Correct mapping (from DB columns, not from user_id math) */
 if ($role === "HOSPITAL_STAFF") {
-  $_SESSION["hospital_id"] = (int)$user["user_id"];
+  $hid = (int)($user["hospital_id"] ?? 0);
+  if ($hid <= 0) {
+    http_response_code(500);
+    echo json_encode(["ok" => false, "message" => "Your account is missing hospital_id in users table."]);
+    exit;
+  }
+  $_SESSION["hospital_id"] = $hid;
 }
-
-/* ================================
-   ✅ Insurance policy check
-   ================================ */
-$policy_completed = null;
 
 if ($role === "INSURANCE_STAFF") {
-
-  $insurance_id = (int)($user["insurance_id"] ?? 0);
-  
-  // Store insurance_id in session
-  $_SESSION["insurance_id"] = $insurance_id;
-
-  if ($insurance_id <= 0) {
-    $policy_completed = 0;
-    $_SESSION["insurance_policy_completed"] = 0;
-  } else {
-    // Check if policy is completed
-    $stmt = $conn->prepare("
-      SELECT policy_completed
-      FROM medical_insurances
-      WHERE insurance_id = ?
-      LIMIT 1
-    ");
-    $stmt->bind_param("i", $insurance_id);
-    $stmt->execute();
-    $res = $stmt->get_result();
-    $row = $res->fetch_assoc();
-    $stmt->close();
-
-    $policy_completed = (int)($row["policy_completed"] ?? 0);
-    $_SESSION["insurance_policy_completed"] = $policy_completed;
+  $iid = (int)($user["insurance_id"] ?? 0);
+  if ($iid <= 0) {
+    http_response_code(500);
+    echo json_encode(["ok" => false, "message" => "Your account is missing insurance_id in users table."]);
+    exit;
   }
+  $_SESSION["insurance_id"] = $iid;
 }
 
-/* ✅ Redirect logic */
+/* ✅ Redirect */
 $redirect = "landing_page.html";
 
 if ($role === "HOSPITAL_STAFF") {
@@ -114,7 +102,6 @@ elseif ($role === "ADMIN") {
   $redirect = "AdminDashboard.php";
 }
 
-/* ✅ Final response */
 echo json_encode([
   "ok" => true,
   "redirect" => $redirect,
