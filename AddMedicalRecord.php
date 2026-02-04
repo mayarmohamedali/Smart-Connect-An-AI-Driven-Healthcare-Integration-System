@@ -10,23 +10,30 @@ require_once "db.php";
 $hospital_id = (int)($_SESSION["hospital_id"] ?? 1);
 $patient_id = (int)($_GET["patient_id"] ?? 0);
 
+$success = "";
+$error   = "";
+
 if ($patient_id <= 0) {
   die("Invalid patient_id");
 }
-
-/* ✅ Ensure patient belongs to this hospital */
-$stmt = $conn->prepare("SELECT patient_id, full_name, national_id FROM patients WHERE patient_id=? AND added_by_hospital_id=? LIMIT 1");
-$stmt->bind_param("ii", $patient_id, $hospital_id);
+$stmt = $conn->prepare("
+  SELECT p.patient_id, p.full_name, p.national_id
+  FROM patients p
+  JOIN insurance_hospitals ih
+    ON ih.insurance_id = p.insurance_id
+   AND ih.hospital_id = ?
+  WHERE p.patient_id = ?
+  LIMIT 1
+");
+$stmt->bind_param("ii", $hospital_id, $patient_id);
 $stmt->execute();
 $patient = $stmt->get_result()->fetch_assoc();
 $stmt->close();
 
 if (!$patient) {
-  die("Patient not found or not under your hospital.");
+  die("This patient’s insurance is not contracted with your hospital.");
 }
 
-$success = "";
-$error = "";
 
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
