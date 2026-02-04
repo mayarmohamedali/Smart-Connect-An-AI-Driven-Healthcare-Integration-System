@@ -12,7 +12,6 @@ import numpy as np
 
 # Visualization
 import matplotlib.pyplot as plt
-import pip
 import seaborn as sns
 
 # Preprocessing
@@ -478,7 +477,7 @@ disp.plot(cmap="Greens")
 plt.title("LightGBM – Epidemic Prediction")
 plt.show()
 
-#pip install catboost
+!pip install catboost
 from catboost import CatBoostClassifier
 
 print("="*60)
