@@ -16,6 +16,7 @@ if (!filter_var($email, FILTER_VALIDATE_EMAIL) || strlen($password) < 6) {
 }
 
 /* ✅ Fetch user (IMPORTANT: also fetch hospital_id & insurance_id) */
+/* ✅ Fetch user data including insurance_id */
 $stmt = $conn->prepare("
   SELECT
     u.user_id,
@@ -51,11 +52,12 @@ $allowed = [
 
 if ($portal !== "" && isset($allowed[$portal]) && $allowed[$portal] !== $role) {
   http_response_code(403);
-  echo json_encode(["ok" => false, "message" => "You don’t have access to this portal"]);
+  echo json_encode(["ok" => false, "message" => "You don't have access to this portal"]);
   exit;
 }
 
 /* ✅ Save session */
+/* ✅ Save session data */
 $_SESSION["auth_type"]  = "staff";
 $_SESSION["user_id"]    = (int)$user["user_id"];
 $_SESSION["role"]       = $role;
@@ -84,13 +86,25 @@ if ($role === "INSURANCE_STAFF") {
 
 /* ✅ Redirect */
 $redirect = "landing_page.html";
-if ($role === "HOSPITAL_STAFF")  $redirect = "HospitalDashboard.php";
-if ($role === "INSURANCE_STAFF") $redirect = "InsuranceDashboard.php";
-if ($role === "ADMIN")           $redirect = "AdminDashboard.php";
+
+if ($role === "HOSPITAL_STAFF") {
+  $redirect = "HospitalDashboard.php";
+} 
+elseif ($role === "INSURANCE_STAFF") {
+  // If policy not completed, redirect to policy setup
+  if ($policy_completed === 0) {
+    $redirect = "policy.php";
+  } else {
+    $redirect = "InsuranceDashboard.php";
+  }
+} 
+elseif ($role === "ADMIN") {
+  $redirect = "AdminDashboard.php";
+}
 
 echo json_encode([
   "ok" => true,
-  "redirect" => $redirect
+  "redirect" => $redirect,
+  "policy_completed" => $policy_completed,
+  "insurance_id" => $_SESSION["insurance_id"] ?? null
 ]);
-exit;
-?>
