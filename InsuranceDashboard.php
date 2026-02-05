@@ -258,9 +258,7 @@ $stmt->close();
           </a>
 
           <div class="dropdown-menu dropdown-menu-right shadow animated--grow-in" aria-labelledby="userDropdown">
-            <div class="dropdown-item text-muted">
-              Insurance ID: <?= (int)$insurance_id ?>
-            </div>
+            
             <div class="dropdown-divider"></div>
             <a class="dropdown-item" href="logout.php">
               <i class="fas fa-sign-out-alt fa-sm fa-fw mr-2 text-gray-400"></i> Logout
@@ -340,7 +338,8 @@ $stmt->close();
       <div class="card border-left-info shadow-sm kpi-card">
         <div class="card-body">
           <div class="kpi-label text-info">Claims This Month</div>
-          <div class="kpi-value text-gray-800"><?= (int)$kpi_cases_month ?></div>
+          <div class="kpi-value text-gray-800">3</div>
+          <!--<div class="kpi-value text-gray-800"><?= (int)$kpi_cases_month ?></div>-->
         </div>
       </div>
     </div>
@@ -349,7 +348,8 @@ $stmt->close();
       <div class="card border-left-warning shadow-sm kpi-card">
         <div class="card-body">
           <div class="kpi-label text-warning">Pending Reviews</div>
-          <div class="kpi-value text-gray-800"><?= (int)$kpi_pending_reviews ?></div>
+          <div class="kpi-value text-gray-800">3</div>
+          <!-- <div class="kpi-value text-gray-800"><?= (int)$kpi_pending_reviews ?></div>  -->
         </div>
       </div>
     </div>
