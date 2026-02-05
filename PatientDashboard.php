@@ -204,7 +204,7 @@ $kpi_records = count($records);
   <!-- MEDICAL -->
   <div id="medical" class="anchor-offset"></div>
   <div class="card shadow mb-4">
-    <div class="card-header font-weight-bold">🩺 Medical (Real Data)</div>
+    <div class="card-header font-weight-bold">🩺 Medical </div>
     <div class="card-body">
       <div class="row">
         <div class="col-md-4 mb-2">
@@ -278,9 +278,7 @@ $kpi_records = count($records);
             </tbody>
           </table>
         </div>
-        <small class="text-muted d-block mt-2">
-          Note: this “View” currently opens the hospital-style record viewer. If you want, I’ll create a clean patient-only viewer next.
-        </small>
+       
       <?php endif; ?>
     </div>
   </div>
@@ -310,10 +308,7 @@ $kpi_records = count($records);
       </div>
 
       <hr>
-      <div class="text-muted">
-        Claims are not dynamic yet because your database dump doesn’t include a <code>claims</code> table.
-        If you send your claims table (or tell me the columns you want), I’ll make this section fully real too.
-      </div>
+      
     </div>
   </div>
 
@@ -323,7 +318,6 @@ $kpi_records = count($records);
     <div class="card-header font-weight-bold">🤖 AI Health Insights (Based on Latest Record)</div>
     <div class="card-body">
       <?php if (!$latest): ?>
-        <div class="text-muted">No medical records yet, so AI insights can’t be generated.</div>
       <?php else: ?>
         <b>Quick Insight:</b>
         <div class="mt-2">
@@ -357,10 +351,7 @@ $kpi_records = count($records);
   <div class="card shadow mb-4">
     <div class="card-header font-weight-bold">📝 Request Insurance Claim</div>
     <div class="card-body">
-      <div class="alert alert-info mb-0">
-        This will be fully dynamic once we add a <code>claims</code> table and a <code>submit_claim.php</code> endpoint.
-        Tell me what claim fields you want (type, hospital, amount, attachments, etc.) and I’ll build it.
-      </div>
+     
     </div>
   </div>
 
