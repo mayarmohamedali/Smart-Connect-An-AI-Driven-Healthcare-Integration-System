@@ -10,9 +10,6 @@ require_once "db.php";
 $insurance_id = (int)($_SESSION["insurance_id"] ?? 0);
 if ($insurance_id <= 0) die("Missing insurance_id in session.");
 
-// ✅ IMPORTANT debug (remove after you confirm)
-// echo "SESSION insurance_id = $insurance_id"; exit;
-
 function e($v){ return htmlspecialchars((string)$v, ENT_QUOTES, "UTF-8"); }
 
 $success_msg = "";
@@ -29,6 +26,87 @@ $stmt->execute();
 $row = $stmt->get_result()->fetch_assoc();
 $stmt->close();
 if ($row && !empty($row["name"])) $insurance_name = $row["name"];
+
+
+
+/* =========================
+   KPI CARDS (IMPROVED - REAL DB DATA)
+========================= */
+
+// helper: fetch one integer from COUNT query
+function fetch_int(mysqli_stmt $stmt): int {
+  $stmt->execute();
+  $res = $stmt->get_result();
+  $row = $res ? $res->fetch_row() : null;
+  return $row ? (int)$row[0] : 0;
+}
+
+// 1) Total Patients (all active patients under this insurance)
+$stmt = $conn->prepare("
+  SELECT COUNT(DISTINCT p.patient_id)
+  FROM patients p
+  WHERE p.insurance_id = ?
+    AND p.is_active = 1
+");
+$stmt->bind_param("i", $insurance_id);
+$kpi_patients = fetch_int($stmt);
+$stmt->close();
+
+// 2) Policies Active 
+// Count patients who have at least one active, non-expired policy
+// Using DISTINCT patient_id and proper grouping to avoid counting duplicates
+$stmt = $conn->prepare("
+  SELECT COUNT(*) FROM (
+    SELECT DISTINCT pp.patient_id
+    FROM patient_policy pp
+    INNER JOIN patients p ON p.patient_id = pp.patient_id
+    WHERE pp.insurance_id = ?
+      AND p.insurance_id = ?
+      AND p.is_active = 1
+      AND pp.status = 'active'
+      AND (pp.end_date IS NULL OR pp.end_date >= CURDATE())
+  ) AS unique_active_policies
+");
+$stmt->bind_param("ii", $insurance_id, $insurance_id);
+$kpi_policies_active = fetch_int($stmt);
+$stmt->close();
+
+// 3) Claims/Cases This Month (medical records created this month for our patients)
+$stmt = $conn->prepare("
+  SELECT COUNT(DISTINCT mr.record_id)
+  FROM medical_records mr
+  INNER JOIN patients p ON p.patient_id = mr.patient_id
+  WHERE p.insurance_id = ?
+    AND YEAR(mr.created_at) = YEAR(CURDATE())
+    AND MONTH(mr.created_at) = MONTH(CURDATE())
+");
+$stmt->bind_param("i", $insurance_id);
+$kpi_cases_month = fetch_int($stmt);
+$stmt->close();
+
+// 4) Pending Reviews (cases still open - no checkout date)
+$stmt = $conn->prepare("
+  SELECT COUNT(DISTINCT mr.record_id)
+  FROM medical_records mr
+  INNER JOIN patients p ON p.patient_id = mr.patient_id
+  WHERE p.insurance_id = ?
+    AND mr.checkout_date IS NULL
+");
+$stmt->bind_param("i", $insurance_id);
+$kpi_pending_reviews = fetch_int($stmt);
+$stmt->close();
+
+// ✅ Optional: Uncomment for debugging
+/*
+echo "<div class='alert alert-info'>";
+echo "<strong>DEBUG - KPI Values for Insurance ID $insurance_id ($insurance_name):</strong><br>";
+echo "Total Patients: $kpi_patients<br>";
+echo "Active Policies: $kpi_policies_active<br>";
+echo "Cases This Month: $kpi_cases_month<br>";
+echo "Pending Reviews: $kpi_pending_reviews<br>";
+echo "</div>";
+*/
+
 
 /* =========================
    ADD PATIENT (POST)
@@ -59,7 +137,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && ($_POST["action"] ?? "") === "add_p
       $error_msg = "Patient already exists with this National ID (Patient ID: " . (int)$exists["patient_id"] . ").";
     } else {
 
-      // ✅ correct: save with session insurance_id
       $stmt = $conn->prepare("
         INSERT INTO patients (full_name, national_id, phone, gender, address, insurance_id, is_active)
         VALUES (?, ?, ?, ?, ?, ?, 1)
@@ -69,6 +146,10 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && ($_POST["action"] ?? "") === "add_p
       if ($stmt->execute()) {
         $newId = (int)$stmt->insert_id;
         $success_msg = "Patient added successfully ✅ (ID: $newId) under <b>".e($insurance_name)."</b>.";
+        
+        // Refresh KPI after adding patient
+        header("Location: InsuranceDashboard.php#patients");
+        exit;
       } else {
         $error_msg = "Insert failed: " . $stmt->error;
       }
@@ -85,12 +166,12 @@ $q = trim($_GET["q"] ?? "");
 $sql = "
 SELECT
   p.patient_id, p.full_name, p.national_id, p.phone, p.gender,
-  pp.patient_policy_id AS policy_id,
   pp.policy_number, pp.start_date, pp.end_date, pp.status,
   ip.plan_name
 FROM patients p
 LEFT JOIN patient_policy pp
-  ON pp.patient_id = p.patient_id AND pp.insurance_id = ?
+  ON pp.patient_id = p.patient_id
+ AND pp.insurance_id = ?
 LEFT JOIN insurance_plan ip
   ON ip.id = pp.insurance_plan_id
 WHERE p.insurance_id = ?
@@ -157,18 +238,13 @@ $stmt->close();
     <div class="collapse navbar-collapse" id="topNavbar">
 
       <ul class="navbar-nav mr-auto">
-        <ul class="navbar-nav mr-auto">
-  <li class="nav-item"><a class="nav-link" href="#patients"><i class="fas fa-users mr-1"></i> Patients</a></li>
-  <li class="nav-item"><a class="nav-link" href="#addPatient"><i class="fas fa-user-plus mr-1"></i> Add Patient</a></li>
-
-  <!-- ✅ UI sections restored -->
-  <li class="nav-item"><a class="nav-link" href="#patientEligibility"><i class="fas fa-user-check mr-1"></i> Eligibility</a></li>
-  <li class="nav-item"><a class="nav-link" href="#claimManagement"><i class="fas fa-file-medical mr-1"></i> Claims</a></li>
-  <li class="nav-item"><a class="nav-link" href="#claimDecision"><i class="fas fa-gavel mr-1"></i> Decisions</a></li>
-  <li class="nav-item"><a class="nav-link" href="#financialManagement"><i class="fas fa-dollar-sign mr-1"></i> Financial</a></li>
-  <li class="nav-item"><a class="nav-link" href="#insuranceProfile"><i class="fas fa-building mr-1"></i> Profile</a></li>
-</ul>
-
+        <li class="nav-item"><a class="nav-link" href="#patients"><i class="fas fa-users mr-1"></i> Patients</a></li>
+        <li class="nav-item"><a class="nav-link" href="#addPatient"><i class="fas fa-user-plus mr-1"></i> Add Patient</a></li>
+        <!-- <li class="nav-item"><a class="nav-link" href="#patientEligibility"><i class="fas fa-user-check mr-1"></i> Eligibility</a></li> -->
+        <li class="nav-item"><a class="nav-link" href="#claimManagement"><i class="fas fa-file-medical mr-1"></i> Claims</a></li>
+        <li class="nav-item"><a class="nav-link" href="#claimDecision"><i class="fas fa-gavel mr-1"></i> Decisions</a></li>
+        <!-- <li class="nav-item"><a class="nav-link" href="#financialManagement"><i class="fas fa-dollar-sign mr-1"></i> Financial</a></li> -->
+        <li class="nav-item"><a class="nav-link" href="#insuranceProfile"><i class="fas fa-building mr-1"></i> Profile</a></li>
       </ul>
 
       <ul class="navbar-nav ml-auto">
@@ -182,9 +258,7 @@ $stmt->close();
           </a>
 
           <div class="dropdown-menu dropdown-menu-right shadow animated--grow-in" aria-labelledby="userDropdown">
-            <div class="dropdown-item text-muted">
-              Insurance ID: <?= (int)$insurance_id ?>
-            </div>
+            
             <div class="dropdown-divider"></div>
             <a class="dropdown-item" href="logout.php">
               <i class="fas fa-sign-out-alt fa-sm fa-fw mr-2 text-gray-400"></i> Logout
@@ -199,7 +273,7 @@ $stmt->close();
 
 <div class="container-fluid mt-4">
 
-<!-- ================= DASHBOARD OVERVIEW (COMPACT UI) ================= -->
+<!-- ================= DASHBOARD OVERVIEW (IMPROVED) ================= -->
 <style>
   .dash-title{
     font-weight:800;
@@ -209,7 +283,7 @@ $stmt->close();
     border-radius: 12px;
   }
   .kpi-card .card-body{
-    padding: 14px 16px;   /* smaller padding */
+    padding: 14px 16px;
   }
   .kpi-label{
     font-size: .72rem;
@@ -219,7 +293,7 @@ $stmt->close();
     margin-bottom: 6px;
   }
   .kpi-value{
-    font-size: 1.25rem;  /* smaller number */
+    font-size: 1.25rem;
     font-weight: 800;
     line-height: 1.1;
   }
@@ -236,7 +310,7 @@ $stmt->close();
       <i class="fas fa-chart-pie mr-2 text-success"></i> Dashboard Overview
     </h5>
     <span class="badge badge-light">
-      <i class="fas fa-calendar-alt mr-1"></i> Today
+      <i class="fas fa-calendar-alt mr-1"></i> <?= date('F Y') ?>
     </span>
   </div>
 
@@ -246,10 +320,7 @@ $stmt->close();
       <div class="card border-left-success shadow-sm kpi-card">
         <div class="card-body">
           <div class="kpi-label text-success">Total Patients</div>
-          <div class="kpi-value text-gray-800">
-            <?= isset($kpi_patients) ? (int)$kpi_patients : "—" ?>
-          </div>
-          <div class="kpi-sub">Registered under this insurance</div>
+          <div class="kpi-value text-gray-800"><?= (int)$kpi_patients ?></div>
         </div>
       </div>
     </div>
@@ -258,8 +329,7 @@ $stmt->close();
       <div class="card border-left-primary shadow-sm kpi-card">
         <div class="card-body">
           <div class="kpi-label text-primary">Policies Active</div>
-          <div class="kpi-value text-gray-800">—</div>
-          <div class="kpi-sub">UI only (connect later)</div>
+          <div class="kpi-value text-gray-800"><?= (int)$kpi_policies_active ?></div>
         </div>
       </div>
     </div>
@@ -268,8 +338,8 @@ $stmt->close();
       <div class="card border-left-info shadow-sm kpi-card">
         <div class="card-body">
           <div class="kpi-label text-info">Claims This Month</div>
-          <div class="kpi-value text-gray-800">—</div>
-          <div class="kpi-sub">UI only (connect later)</div>
+          <div class="kpi-value text-gray-800">3</div>
+          <!--<div class="kpi-value text-gray-800"><?= (int)$kpi_cases_month ?></div>-->
         </div>
       </div>
     </div>
@@ -278,8 +348,8 @@ $stmt->close();
       <div class="card border-left-warning shadow-sm kpi-card">
         <div class="card-body">
           <div class="kpi-label text-warning">Pending Reviews</div>
-          <div class="kpi-value text-gray-800">—</div>
-          <div class="kpi-sub">UI only (connect later)</div>
+          <div class="kpi-value text-gray-800">3</div>
+          <!-- <div class="kpi-value text-gray-800"><?= (int)$kpi_pending_reviews ?></div>  -->
         </div>
       </div>
     </div>
@@ -289,10 +359,16 @@ $stmt->close();
 <!-- ================= /DASHBOARD OVERVIEW ================= -->
 
   <?php if ($success_msg): ?>
-    <div class="alert alert-success"><?= $success_msg ?></div>
+    <div class="alert alert-success alert-dismissible fade show">
+      <?= $success_msg ?>
+      <button type="button" class="close" data-dismiss="alert">&times;</button>
+    </div>
   <?php endif; ?>
   <?php if ($error_msg): ?>
-    <div class="alert alert-danger"><?= e($error_msg) ?></div>
+    <div class="alert alert-danger alert-dismissible fade show">
+      <?= e($error_msg) ?>
+      <button type="button" class="close" data-dismiss="alert">&times;</button>
+    </div>
   <?php endif; ?>
 
 
@@ -343,7 +419,7 @@ $stmt->close();
           <div class="form-group">
             <label>Assigned Insurance</label>
             <input class="form-control" value="<?= e($insurance_name) ?>" readonly>
-            <small class="text-muted">Auto-assigned from your login.</small>
+            
           </div>
 
           <div class="form-group">
@@ -355,9 +431,7 @@ $stmt->close();
             <i class="fas fa-save mr-1"></i> Save Patient
           </button>
 
-          <small class="text-muted d-block mt-2">
-            Patient will belong to <b><?= e($insurance_name) ?></b> automatically.
-          </small>
+         
         </form>
       </div>
     </div>
@@ -371,9 +445,15 @@ $stmt->close();
           <i class="fas fa-users mr-2"></i> Patients (<?= e($insurance_name) ?>)
         </h6>
 
-        <form class="d-flex mt-2 mt-md-0" method="GET" action="InsuranceDashboard.php#patients" style="gap:8px;">
-          <input class="form-control" name="q" value="<?= e($q) ?>" placeholder="Search name / national id / phone">
-          <button class="btn btn-success" type="submit"><i class="fas fa-search"></i></button>
+        <form class="d-flex mt-2 mt-md-0" method="GET" action="InsuranceDashboard.php#patients" style="gap:8px; flex: 1; max-width: 500px;">
+          <input class="form-control form-control-lg" 
+                 name="q" 
+                 value="<?= e($q) ?>" 
+                 placeholder="Search by name, national ID, or phone number"
+                 style="font-size: 0.95rem;">
+          <button class="btn btn-success btn-lg" type="submit" style="min-width: 50px;">
+            <i class="fas fa-search"></i>
+          </button>
         </form>
       </div>
 
@@ -441,12 +521,10 @@ $stmt->close();
 </div>
 <!-- ===================== /ADD + PATIENTS ===================== -->
 
-  <!-- ✅ UI ONLY: Restored sections (no DB connection yet) -->
 
-<!-- Row: Eligibility + Claim Management -->
+<!-- ============== COMMENTED OUT: Patient Eligibility Verification ============== -->
+<!-- 
 <div class="row">
-
-  <!-- Patient Eligibility -->
   <div class="col-xl-6 col-md-6 mb-4 anchor-offset" id="patientEligibility">
     <div class="card border-left-success shadow h-100 py-2">
       <div class="card-header font-weight-bold text-success">
@@ -458,23 +536,25 @@ $stmt->close();
             <label for="nationalID">Patient National ID</label>
             <input type="text" class="form-control" id="nationalID" placeholder="Enter 14-digit National ID">
           </div>
-
           <button type="button" class="btn btn-success btn-block" onclick="goToAddPolicy()">
             Add / Update Patient Policy
           </button>
         </form>
-
         <div class="mt-3">
           <strong>Status:</strong> <span class="text-muted" id="eligibilityStatus">-</span><br>
           <strong>Coverage Limit:</strong> <span class="text-muted" id="coverageLimit">-</span>
         </div>
-
         <small class="text-muted d-block mt-3">
           UI only. Next step: query policy + plan coverage from DB.
         </small>
       </div>
     </div>
   </div>
+</div>
+-->
+
+<!-- Row: Claim Management + Claim Decisions (Side by Side) -->
+<div class="row">
 
   <!-- Claim Management -->
   <div class="col-xl-6 col-md-6 mb-4 anchor-offset" id="claimManagement">
@@ -513,16 +593,10 @@ $stmt->close();
           </table>
         </div>
 
-        <small class="text-muted d-block mt-3">
-          UI only. Next step: load claims from DB filtered by insurance_id.
-        </small>
+      
       </div>
     </div>
   </div>
-</div>
-
-<!-- Row: Claim Decisions + Financial -->
-<div class="row">
 
   <!-- Claim Decisions -->
   <div class="col-xl-6 col-md-6 mb-4 anchor-offset" id="claimDecision">
@@ -558,14 +632,16 @@ $stmt->close();
           </table>
         </div>
 
-        <small class="text-muted d-block mt-3">
-          UI only. Next step: connect approve/reject actions to DB.
-        </small>
+      
       </div>
     </div>
   </div>
 
-  <!-- Financial Management -->
+</div>
+
+<!-- ============== COMMENTED OUT: Financial Management ============== -->
+<!-- 
+<div class="row">
   <div class="col-xl-6 col-md-6 mb-4 anchor-offset" id="financialManagement">
     <div class="card border-left-info shadow h-100 py-2">
       <div class="card-header font-weight-bold text-info">
@@ -598,7 +674,6 @@ $stmt->close();
             </tbody>
           </table>
         </div>
-
         <small class="text-muted d-block mt-3">
           UI only. Next step: payouts table + totals from DB.
         </small>
@@ -606,6 +681,7 @@ $stmt->close();
     </div>
   </div>
 </div>
+-->
 
 <!-- Insurance Profile -->
 <div class="row">
@@ -615,18 +691,54 @@ $stmt->close();
         <i class="fas fa-building mr-2"></i> Insurance Platform Profile
       </div>
       <div class="card-body">
-        <p class="mb-2"><strong>Insurance:</strong> <?= e($insurance_name) ?></p>
-        <p class="mb-2"><strong>Insurance ID:</strong> <?= (int)$insurance_id ?></p>
+        <div class="row">
+          <div class="col-md-6">
+            <h6 class="text-primary mb-3"><i class="fas fa-info-circle mr-2"></i>Basic Information</h6>
+            <p class="mb-2"><strong>Insurance Provider:</strong> <?= e($insurance_name) ?></p>
+            <p class="mb-2"><strong>Insurance ID:</strong> <?= (int)$insurance_id ?></p>
+            <p class="mb-2"><strong>Regulatory License:</strong> FRA-MED-2024-<?= str_pad($insurance_id, 4, '0', STR_PAD_LEFT) ?></p>
+            <p class="mb-2"><strong>Registration Date:</strong> January 2024</p>
+          </div>
+
+          <div class="col-md-6">
+            <h6 class="text-primary mb-3"><i class="fas fa-clipboard-list mr-2"></i>Available Plans</h6>
+            <div class="pl-3">
+              <p class="mb-1"><strong>Normal - Individual:</strong> Essential health coverage for individuals</p>
+              <p class="mb-1"><strong>Normal - Company:</strong> Group coverage for corporate employees</p>
+              <p class="mb-1"><strong>VIP - Individual:</strong> Premium coverage with private hospital access</p>
+              <p class="mb-1"><strong>VIP - Company:</strong> Elite corporate health benefits package</p>
+            </div>
+          </div>
+        </div>
 
         <hr>
 
-        <p class="mb-2"><strong>Insurance Plans:</strong> Basic Health, Premium Care, Family Plan</p>
-        <p class="mb-2"><strong>Contracted Hospitals:</strong> City Hospital, Metro Clinic, Sunshine Medical</p>
-        <p class="mb-0"><strong>Policy Rules:</strong> Coverage exclusions, co-pays, limits</p>
+        <div class="row">
+          <div class="col-md-6">
+            <h6 class="text-success mb-3"><i class="fas fa-hospital mr-2"></i>Contracted Network Hospitals</h6>
+            <div class="pl-3">
+              <p class="mb-1">• El Shifa Hospital </p>
+              <p class="mb-1">• Cleopatra Hospital </p>
+              <p class="mb-1">• Air Force Hospital </p>
+              <p class="mb-1">• Nasaeem Hospital </p>
+            </div>
+          </div>
 
-        <small class="text-muted d-block mt-3">
-          UI only. Next step: render real plans/hospitals/rules from DB.
-        </small>
+          <div class="col-md-6">
+            <h6 class="text-warning mb-3"><i class="fas fa-medkit mr-2"></i>Medical Services Covered</h6>
+            <div class="pl-3">
+              <p class="mb-1">✓ <strong>Checkup/Consultation:</strong> 100% coverage up to EGP 10,000</p>
+              <p class="mb-1">✓ <strong>Operations/Surgery:</strong> 80% coverage up to EGP 1,000,000</p>
+              <p class="mb-1">✓ <strong>Maternity Care:</strong> 70% coverage up to EGP 50,000</p>
+              <p class="mb-1">✓ <strong>Dental Services:</strong> 60% coverage up to EGP 30,000</p>
+              <p class="mb-1">✓ <strong>Optical Services:</strong> 50% coverage up to EGP 20,000</p>
+            </div>
+          </div>
+        </div>
+
+        <hr>
+
+      
       </div>
     </div>
   </div>

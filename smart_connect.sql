@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Feb 04, 2026 at 11:08 AM
+-- Generation Time: Feb 05, 2026 at 10:15 AM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.2.12
 
@@ -69,8 +69,6 @@ CREATE TABLE `hospitals` (
   `hospital_id` int(10) UNSIGNED NOT NULL,
   `name` varchar(150) NOT NULL,
   `license_number` varchar(60) DEFAULT NULL,
-  `address` varchar(255) DEFAULT NULL,
-  `phone` varchar(30) DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
@@ -78,11 +76,11 @@ CREATE TABLE `hospitals` (
 -- Dumping data for table `hospitals`
 --
 
-INSERT INTO `hospitals` (`hospital_id`, `name`, `license_number`, `address`, `phone`, `created_at`) VALUES
-(1, 'El Shifa Hospital', NULL, NULL, NULL, '2026-01-30 05:50:37'),
-(2, 'Cleopatra Hospital', NULL, NULL, NULL, '2026-01-30 05:50:37'),
-(3, 'Air Force Hospital', NULL, NULL, NULL, '2026-01-30 05:50:37'),
-(4, 'Nasaeem Hospital', NULL, NULL, NULL, '2026-01-30 05:50:37');
+INSERT INTO `hospitals` (`hospital_id`, `name`, `license_number`, `created_at`) VALUES
+(1, 'El Shifa Hospital', NULL, '2026-01-30 05:50:37'),
+(2, 'Cleopatra Hospital', NULL, '2026-01-30 05:50:37'),
+(3, 'Air Force Hospital', NULL, '2026-01-30 05:50:37'),
+(4, 'Nasaeem Hospital', NULL, '2026-01-30 05:50:37');
 
 -- --------------------------------------------------------
 
@@ -231,10 +229,8 @@ CREATE TABLE `patients` (
   `full_name` varchar(150) NOT NULL,
   `national_id` varchar(20) NOT NULL,
   `phone` varchar(30) NOT NULL,
-  `date_of_birth` date DEFAULT NULL,
   `gender` enum('M','F') DEFAULT NULL,
   `address` varchar(255) DEFAULT NULL,
-  `added_by_hospital_id` int(10) UNSIGNED DEFAULT NULL,
   `insurance_id` int(10) UNSIGNED DEFAULT NULL,
   `is_active` tinyint(1) NOT NULL DEFAULT 1,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp()
@@ -244,17 +240,12 @@ CREATE TABLE `patients` (
 -- Dumping data for table `patients`
 --
 
-INSERT INTO `patients` (`patient_id`, `full_name`, `national_id`, `phone`, `date_of_birth`, `gender`, `address`, `added_by_hospital_id`, `insurance_id`, `is_active`, `created_at`) VALUES
-(6, 'Ahmed Hassan', '30304050100987', '01012345678', NULL, 'M', 'Cairo', 1, NULL, 1, '2026-01-30 05:58:47'),
-(7, 'Sara Mohamed', '29802022345678', '01198765432', NULL, 'F', 'Giza', 2, NULL, 1, '2026-01-30 05:58:47'),
-(8, 'Omar Khaled', '30003033456789', '01234567890', NULL, 'M', 'Alexandria', 3, NULL, 1, '2026-01-30 05:58:47'),
-(9, 'Mona Adel', '29704044567890', '01511223344', NULL, 'F', 'Nasr City', 4, NULL, 1, '2026-01-30 05:58:47'),
-(10, 'Maya Mohamed', '40404070100464', '01003147823', NULL, 'F', 'fifth settlement', 1, NULL, 1, '2026-02-02 09:18:33'),
-(11, 'ahmed amr', '50507010200345', '01003458799', NULL, 'M', 'nasr city', 1, NULL, 1, '2026-02-02 10:37:51'),
-(12, 'merna mohamed', '30405070100987', '01001720391', NULL, 'F', 'fifth settlement', 1, NULL, 1, '2026-02-04 00:13:50'),
-(13, 'Mayar Mohamed', '30304070100464', '01003147822', NULL, 'F', 'fifth settlement', NULL, 1, 1, '2026-02-04 02:47:36'),
-(14, 'merna mohamed', '50506070200489', '01095463987', NULL, 'F', 'fifth settlement', NULL, 2, 1, '2026-02-04 02:48:59'),
-(15, 'mariam mohamed', '40405060700987', '01003147833', NULL, 'F', 'fifth settlement', NULL, 2, 1, '2026-02-04 04:01:24');
+INSERT INTO `patients` (`patient_id`, `full_name`, `national_id`, `phone`, `gender`, `address`, `insurance_id`, `is_active`, `created_at`) VALUES
+(13, 'Mayar Mohamed', '30304070100464', '01003147822', 'F', 'fifth settlement', 1, 1, '2026-02-04 02:47:36'),
+(14, 'merna mohamed', '50506070200489', '01095463987', 'F', 'fifth settlement', 2, 1, '2026-02-04 02:48:59'),
+(15, 'mariam mohamed', '40405060700987', '01003147833', 'F', 'fifth settlement', 2, 1, '2026-02-04 04:01:24'),
+(16, 'mahy moatasem', '27312090134570', '01001720391', 'F', 'fifth settlement', 1, 1, '2026-02-05 07:12:31'),
+(17, 'mohamed farouk', '27312090345690', '01095347822', 'M', 'fifth settlement', 1, 1, '2026-02-05 07:25:37');
 
 -- --------------------------------------------------------
 
@@ -282,7 +273,8 @@ INSERT INTO `patient_policy` (`patient_policy_id`, `patient_id`, `insurance_id`,
 (0, 10, 1, 9, 'AXA-3941', '2026-02-08', '2027-02-04', 'active', '2026-02-04 00:49:21'),
 (1, 11, 1, 8, 'AXA-3940', '2026-02-02', NULL, 'active', '2026-02-03 07:51:25'),
 (0, 12, 1, 9, 'AXA-3960', '2026-02-03', '2026-03-08', 'active', '2026-02-04 00:17:13'),
-(0, 13, 1, 9, 'AXA-3987', '2026-02-01', '2027-02-02', 'active', '2026-02-04 04:04:49');
+(0, 13, 1, 9, 'AXA-3987', '2026-02-01', '2027-02-02', 'active', '2026-02-04 04:04:49'),
+(0, 16, 1, 7, 'AXA-3990', '2026-02-05', '2027-02-05', 'active', '2026-02-05 07:13:04');
 
 -- --------------------------------------------------------
 
@@ -662,7 +654,7 @@ ALTER TABLE `medical_records`
 -- AUTO_INCREMENT for table `patients`
 --
 ALTER TABLE `patients`
-  MODIFY `patient_id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=16;
+  MODIFY `patient_id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=18;
 
 --
 -- AUTO_INCREMENT for table `users`

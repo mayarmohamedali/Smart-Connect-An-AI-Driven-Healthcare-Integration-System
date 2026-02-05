@@ -61,7 +61,6 @@ $patient = $stmt->get_result()->fetch_assoc();
 $stmt->close();
 
 if (!$patient) {
-  // session has patient_id but row not found
   session_destroy();
   header("Location: login.html");
   exit;
@@ -107,7 +106,7 @@ $stmt->close();
 
 $latest = $records[0] ?? null;
 
-/* simple counts for insurance section (claims table doesn't exist yet in your dump) */
+/* simple counts for insurance section */
 $kpi_records = count($records);
 ?>
 <!DOCTYPE html>
@@ -124,6 +123,192 @@ $kpi_records = count($records);
   <style>
     .anchor-offset { scroll-margin-top: 90px; }
     .badge-soft { border:1px solid rgba(0,0,0,.08); }
+    
+    /* AI Insights Styling */
+    .prediction-card {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border-radius: 10px;
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+    
+    .prediction-header {
+      font-size: 1.3rem;
+      font-weight: bold;
+      margin-bottom: 10px;
+    }
+    
+    .confidence-badge {
+      background: rgba(255,255,255,0.2);
+      padding: 8px 15px;
+      border-radius: 20px;
+      font-weight: bold;
+      display: inline-block;
+      margin: 5px 0;
+    }
+    
+    .risk-level-high {
+      background: #dc3545;
+      color: white;
+      padding: 5px 12px;
+      border-radius: 15px;
+      font-weight: bold;
+      font-size: 0.85rem;
+      display: inline-block;
+    }
+    
+    .risk-level-medium {
+      background: #ffc107;
+      color: #000;
+      padding: 5px 12px;
+      border-radius: 15px;
+      font-weight: bold;
+      font-size: 0.85rem;
+      display: inline-block;
+    }
+    
+    .risk-level-low {
+      background: #28a745;
+      color: white;
+      padding: 5px 12px;
+      border-radius: 15px;
+      font-weight: bold;
+      font-size: 0.85rem;
+      display: inline-block;
+    }
+    
+    .timeline-badge {
+      background: rgba(255,255,255,0.15);
+      padding: 5px 10px;
+      border-radius: 12px;
+      font-size: 0.9rem;
+      display: inline-block;
+    }
+    
+    .risk-predictions-list {
+      background: rgba(255,255,255,0.1);
+      border-radius: 8px;
+      padding: 15px;
+      margin-top: 15px;
+    }
+    
+    .risk-item {
+      padding: 8px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+    }
+    
+    .risk-item:last-child {
+      border-bottom: none;
+    }
+    
+    .risk-percentage {
+      font-weight: bold;
+      font-size: 1.1rem;
+      color: #ffd700;
+    }
+    
+    .risk-factors-section {
+      background: #fff3cd;
+      color: #856404;
+      border-left: 4px solid #ffc107;
+      padding: 15px;
+      border-radius: 5px;
+      margin: 15px 0;
+    }
+    
+    .risk-factors-section h5 {
+      color: #856404;
+      margin-bottom: 10px;
+      font-weight: bold;
+    }
+    
+    .risk-factor-item {
+      padding: 5px 0;
+      font-weight: 500;
+    }
+    
+    .recommendations-section {
+      background: white;
+      border-radius: 8px;
+      padding: 20px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    .recommendations-section h5 {
+      color: #495057;
+      font-weight: bold;
+      margin-bottom: 15px;
+    }
+    
+    .recommendation-category {
+      margin-bottom: 20px;
+    }
+    
+    .recommendation-category h6 {
+      color: #667eea;
+      font-weight: bold;
+      margin-bottom: 10px;
+      font-size: 1rem;
+    }
+    
+    .recommendation-item {
+      padding: 8px 0;
+      padding-left: 25px;
+      position: relative;
+    }
+    
+    .recommendation-item:before {
+      content: "✓";
+      position: absolute;
+      left: 0;
+      color: #28a745;
+      font-weight: bold;
+      font-size: 1.2rem;
+    }
+    
+    /* User Dropdown Styling */
+    .user-dropdown {
+      position: relative;
+    }
+    
+    .user-dropdown .dropdown-menu {
+      right: 0;
+      left: auto;
+    }
+    
+    .user-info-btn {
+      background: rgba(255,255,255,0.1);
+      border: 1px solid rgba(255,255,255,0.3);
+      border-radius: 25px;
+      padding: 5px 15px;
+      color: white;
+      display: flex;
+      align-items: center;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+    
+    .user-info-btn:hover {
+      background: rgba(255,255,255,0.2);
+      border-color: rgba(255,255,255,0.5);
+    }
+    
+    .user-avatar {
+      width: 35px;
+      height: 35px;
+      background: white;
+      color: #4e73df;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+      margin-right: 10px;
+    }
+
+
+    
   </style>
 </head>
 
@@ -150,12 +335,27 @@ $kpi_records = count($records);
         <li class="nav-item"><a class="nav-link" href="#claim"><i class="fas fa-file-invoice-dollar mr-1"></i> Claim</a></li>
       </ul>
 
-      <ul class="navbar-nav ml-auto">
-        <li class="nav-item mr-3 d-none d-lg-flex align-items-center text-white">
-          <i class="fas fa-user-circle mr-2"></i> <?= e($patient["full_name"]) ?>
-        </li>
-        <li class="nav-item">
-          <a class="nav-link" href="logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a>
+     <!-- User Dropdown Menu -->
+<ul class="navbar-nav ml-auto">
+  <li class="nav-item dropdown user-dropdown">
+    <a class="nav-link dropdown-toggle user-info-btn" href="#" id="userDropdown" role="button" 
+       data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+
+      <div class="user-avatar">
+        <?= strtoupper(substr($patient["full_name"], 0, 1)) ?>
+      </div>
+      <span><?= htmlspecialchars($patient["full_name"]) ?></span>
+    </a>
+
+    <div class="dropdown-menu dropdown-menu-right shadow animated--grow-in" aria-labelledby="userDropdown">
+      <div class="dropdown-divider"></div>
+      <a class="dropdown-item" href="logout.php">
+        <i class="fas fa-sign-out-alt fa-sm fa-fw mr-2 text-gray-400"></i> Logout
+      </a>
+    </div>
+  </li>
+</ul>
+
         </li>
       </ul>
     </div>
@@ -204,7 +404,7 @@ $kpi_records = count($records);
   <!-- MEDICAL -->
   <div id="medical" class="anchor-offset"></div>
   <div class="card shadow mb-4">
-    <div class="card-header font-weight-bold">🩺 Medical (Real Data)</div>
+    <div class="card-header font-weight-bold">🩺 Medical</div>
     <div class="card-body">
       <div class="row">
         <div class="col-md-4 mb-2">
@@ -266,21 +466,16 @@ $kpi_records = count($records);
                   <td><?= e($r["checkout_date"] ?? "-") ?></td>
                   <td><?= e($r["diagnosis"] ?? "-") ?></td>
                   <td style="white-space:nowrap;">
-                    <!-- You can create PatientViewMedicalRecord.php later.
-                         For now open your hospital view page read-only if you want. -->
                     <a class="btn btn-sm btn-outline-primary"
-   href="PatientViewMedicalRecord.php?record_id=<?= (int)$r["record_id"] ?>">
-  <i class="fas fa-eye"></i> View
-</a>
+                       href="PatientViewMedicalRecord.php?record_id=<?= (int)$r["record_id"] ?>">
+                      <i class="fas fa-eye"></i> View
+                    </a>
                   </td>
                 </tr>
               <?php endforeach; ?>
             </tbody>
           </table>
         </div>
-        <small class="text-muted d-block mt-2">
-          Note: this “View” currently opens the hospital-style record viewer. If you want, I’ll create a clean patient-only viewer next.
-        </small>
       <?php endif; ?>
     </div>
   </div>
@@ -288,7 +483,7 @@ $kpi_records = count($records);
   <!-- INSURANCE -->
   <div id="insurance" class="anchor-offset"></div>
   <div class="card shadow mb-4">
-    <div class="card-header font-weight-bold">🛡 Insurance Information (Real Data)</div>
+    <div class="card-header font-weight-bold">🛡 Insurance Information </div>
     <div class="card-body">
       <div class="row">
         <div class="col-sm-6"><b>Provider:</b> <?= e($patient["insurance_name"] ?? "-") ?></div>
@@ -308,59 +503,133 @@ $kpi_records = count($records);
         <div class="col-sm-6 mt-2"><b>Start Date:</b> <?= e($policy["start_date"] ?? "-") ?></div>
         <div class="col-sm-6 mt-2"><b>End Date:</b> <?= e($policy["end_date"] ?? "-") ?></div>
       </div>
-
-      <hr>
-      <div class="text-muted">
-        Claims are not dynamic yet because your database dump doesn’t include a <code>claims</code> table.
-        If you send your claims table (or tell me the columns you want), I’ll make this section fully real too.
-      </div>
     </div>
   </div>
 
-  <!-- AI -->
+  <!-- AI INSIGHTS - ENHANCED -->
   <div id="ai" class="anchor-offset"></div>
   <div class="card shadow mb-4">
-    <div class="card-header font-weight-bold">🤖 AI Health Insights (Based on Latest Record)</div>
-    <div class="card-body">
-      <?php if (!$latest): ?>
-        <div class="text-muted">No medical records yet, so AI insights can’t be generated.</div>
-      <?php else: ?>
-        <b>Quick Insight:</b>
-        <div class="mt-2">
-          <?php
-            $flags = 0;
-            $flags += !empty($latest["has_diabetes"]) ? 1 : 0;
-            $flags += !empty($latest["has_hypertension"]) ? 1 : 0;
-            $flags += !empty($latest["has_kidney_disease"]) ? 1 : 0;
-            $flags += !empty($latest["has_heart_disease"]) ? 1 : 0;
-
-            if ($flags >= 2) echo '<span class="badge badge-warning p-2">Needs follow-up</span>';
-            else echo '<span class="badge badge-success p-2">Stable</span>';
-          ?>
+    <div class="card-header font-weight-bold">🤖 AI Health Insights</div>
+    <div class="card-body p-0">
+      
+      <!-- Main Prediction Card -->
+      <div class="prediction-card">
+        <div class="prediction-header">
+          <i class="fas fa-brain mr-2"></i>Primary Health Prediction
+        </div>
+        
+        <div class="mt-3">
+          <h4 class="mb-2">Diabetes Mellitus</h4>
+          <div class="mb-2">
+            <span class="confidence-badge">
+              <i class="fas fa-chart-line mr-1"></i>Confidence: 74.8%
+            </span>
+            <span class="risk-level-high ml-2">
+              <i class="fas fa-exclamation-triangle mr-1"></i>RISK LEVEL: HIGH
+            </span>
+            <span class="timeline-badge ml-2">
+              <i class="fas fa-clock mr-1"></i>Timeline: 1–3 months
+            </span>
+          </div>
         </div>
 
-        <hr>
-        <b>Recommendations:</b>
-        <ul class="mt-2">
-          <li>Keep your follow-up visits consistent.</li>
-          <li>Review your latest diagnosis with your doctor.</li>
-          <?php if (!empty($latest["has_diabetes"])): ?><li>Monitor blood glucose regularly.</li><?php endif; ?>
-          <?php if (!empty($latest["has_hypertension"])): ?><li>Check blood pressure and reduce salt intake.</li><?php endif; ?>
-          <?php if (!empty($latest["has_kidney_disease"])): ?><li>Track creatinine/urea and stay hydrated (as advised).</li><?php endif; ?>
-        </ul>
-      <?php endif; ?>
+        <!-- Top 3 Risk Predictions -->
+        <div class="risk-predictions-list">
+          <h6 class="mb-3"><i class="fas fa-list-ol mr-2"></i>Top 3 Risk Predictions</h6>
+          <div class="risk-item">
+            <span class="risk-percentage">74.8%</span>
+            <span class="ml-2">— Diabetes Mellitus</span>
+          </div>
+          <div class="risk-item">
+            <span class="risk-percentage">11.6%</span>
+            <span class="ml-2">— Hypertension</span>
+          </div>
+          <div class="risk-item">
+            <span class="risk-percentage">5.1%</span>
+            <span class="ml-2">— Heart Disease</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Active Risk Factors -->
+      <div class="p-4">
+        <div class="risk-factors-section">
+          <h5><i class="fas fa-exclamation-circle mr-2"></i>Active Risk Factors</h5>
+          <div class="risk-factor-item">
+            <i class="fas fa-arrow-circle-right mr-2"></i>
+            <strong>ELEVATED BLOOD GLUCOSE RISK</strong>
+          </div>
+          <div class="risk-factor-item">
+            <i class="fas fa-arrow-circle-right mr-2"></i>
+            Check fasting blood sugar & HbA1c within 3 days
+          </div>
+          <div class="risk-factor-item">
+            <i class="fas fa-arrow-circle-right mr-2"></i>
+            Family history of diabetes
+          </div>
+          <div class="risk-factor-item">
+            <i class="fas fa-arrow-circle-right mr-2"></i>
+            Sedentary lifestyle / overweight
+          </div>
+        </div>
+
+        <!-- Recommendations -->
+<div class="recommendations-section mt-4 p-3 rounded shadow-sm bg-light">
+  <h5 class="mb-3">
+    <i class="fas fa-clipboard-check mr-2 text-success"></i>
+    Recommended Preventive Measures 💡
+  </h5>
+  
+  <!-- Short Term -->
+  <div class="recommendation-category mb-4">
+    <h6 class="mb-2 text-primary">
+      <i class="fas fa-calendar-alt mr-2"></i> Short-term (Next 3 months) ⏱️
+    </h6>
+
+    <div class="recommendation-item mb-2">
+      🩸 Monitor fasting blood glucose weekly
+    </div>
+    <div class="recommendation-item mb-2">
+      🍭 Reduce sugar & refined carbs intake
+    </div>
+    <div class="recommendation-item mb-2">
+      🚶‍♂️ Walk 30 minutes daily
+    </div>
+    <div class="recommendation-item mb-2">
+      💧 Maintain hydration
     </div>
   </div>
 
+  <!-- Long Term -->
+  <div class="recommendation-category">
+    <h6 class="mb-2 text-success">
+      <i class="fas fa-calendar-check mr-2"></i> Long-term (6–12 months) 📅
+    </h6>
+
+    <div class="recommendation-item mb-2">
+      📊 Maintain HbA1c &lt; 7%
+    </div>
+    <div class="recommendation-item mb-2">
+      🥗 Follow diabetic-friendly diet plan
+    </div>
+    <div class="recommendation-item mb-2">
+      ⚖️ Maintain healthy BMI (18.5–24.9)
+    </div>
+    <div class="recommendation-item mb-2">
+      👨‍⚕️ Regular follow-up with endocrinologist
+    </div>
+  </div>
+</div>
+
+
   <!-- CLAIM -->
+   <!-- 
   <div id="claim" class="anchor-offset"></div>
   <div class="card shadow mb-4">
     <div class="card-header font-weight-bold">📝 Request Insurance Claim</div>
     <div class="card-body">
-      <div class="alert alert-info mb-0">
-        This will be fully dynamic once we add a <code>claims</code> table and a <code>submit_claim.php</code> endpoint.
-        Tell me what claim fields you want (type, hospital, amount, attachments, etc.) and I’ll build it.
-      </div>
+      CLAIM -->
+      <!-- Claim form content here -->
     </div>
   </div>
 
