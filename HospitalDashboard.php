@@ -462,17 +462,91 @@ $stmt->close();
     </div>
   </div>
 
-  <!-- ================= STAFF SECTION ================= -->
-  <div id="staff" class="anchor-offset mt-4">
-    <h3 class="text-primary section-title mb-3">Staff Roles & Permissions</h3>
-    <div class="card shadow mb-4">
-      <div class="card-body">
-        <p class="text-muted mb-0">
-          Next step: connect to your <code>users</code> + <code>roles</code> tables and show staff list by hospital.
-        </p>
+ <!-- ================= EPIDEMIC ALERT SYSTEM ================= -->
+<div id="epidemic-alerts" class="anchor-offset mt-4">
+
+  <h3 class="text-danger section-title mb-3">
+    🏥 Hospital Epidemic Alert System
+  </h3>
+
+  <!-- SUMMARY CARD -->
+  <div class="card shadow mb-4 border-left-danger">
+    <div class="card-body d-flex align-items-center justify-content-between flex-wrap">
+      <div>
+        <h5 class="font-weight-bold text-danger mb-1">🚨 High Priority Alerts</h5>
+        <p class="mb-0 text-muted">AI-based epidemic predictions for the upcoming period</p>
       </div>
+      <span class="badge badge-danger badge-pill p-3">
+        85 Predictions
+      </span>
     </div>
   </div>
+
+  <!-- ALERT LIST -->
+  <div class="row">
+
+    <!-- ALERT CARD -->
+    <div class="col-lg-6 mb-4">
+      <div class="card shadow h-100 border-left-warning">
+        <div class="card-body">
+          <h5 class="font-weight-bold text-warning">
+            ⚠️ ALERT: Hepatic Coma
+          </h5>
+
+          <ul class="list-unstyled mb-3">
+            <li>📅 <strong>Month:</strong> January</li>
+            <li>📈 <strong>Epidemic Risk:</strong>
+              <span class="badge badge-danger">99.6%</span>
+            </li>
+            <li>📊 <strong>Expected Cases:</strong> 3</li>
+          </ul>
+
+          <div class="alert alert-warning py-2">
+            💡 <strong>Action:</strong> Prepare hepatic coma treatment capacity
+          </div>
+
+          <h6 class="font-weight-bold mt-3">🏥 Recommendations:</h6>
+          <ul class="mb-0">
+            <li>Review admission patterns</li>
+            <li>Ensure adequate general capacity</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- ALERT CARD -->
+    <div class="col-lg-6 mb-4">
+      <div class="card shadow h-100 border-left-warning">
+        <div class="card-body">
+          <h5 class="font-weight-bold text-warning">
+            ⚠️ ALERT: Stroke
+          </h5>
+
+          <ul class="list-unstyled mb-3">
+            <li>📅 <strong>Month:</strong> January</li>
+            <li>📈 <strong>Epidemic Risk:</strong>
+              <span class="badge badge-danger">99.5%</span>
+            </li>
+            <li>📊 <strong>Expected Cases:</strong> 6</li>
+          </ul>
+
+          <div class="alert alert-warning py-2">
+            💡 <strong>Action:</strong> Prepare stroke treatment capacity
+          </div>
+
+          <h6 class="font-weight-bold mt-3">🏥 Recommendations:</h6>
+          <ul class="mb-0">
+            <li>Review admission patterns</li>
+            <li>Ensure ICU & neurology readiness</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+ 
+
+</div>
+
 
 </div>
 
