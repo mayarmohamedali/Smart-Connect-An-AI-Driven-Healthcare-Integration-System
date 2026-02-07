@@ -1,14 +1,27 @@
 <?php
+/**
+ * Add Medical Record - OOP Version
+ * Fully functional - saves to database
+ */
+
 session_start();
-if (!isset($_SESSION["auth_type"]) || $_SESSION["auth_type"] !== "staff" || ($_SESSION["role"] ?? "") !== "HOSPITAL_STAFF") {
-  header("Location: login.html");
-  exit;
-}
 
-require_once "db.php";
+require_once __DIR__ . '/Database.php';
+require_once __DIR__ . '/Auth.php';
+require_once __DIR__ . '/Patient.php';
+require_once __DIR__ . '/MedicalRecord.php';
+require_once __DIR__ . '/Validator.php';
 
-$hospital_id = (int)($_SESSION["hospital_id"] ?? 1);
-$patient_id = (int)($_GET["patient_id"] ?? 0);
+// Initialize
+$db = new Database();
+$conn = $db->getConnection();
+$auth = new Auth($conn);
+
+// Check authentication
+$auth->checkStaffAuth("HOSPITAL_STAFF");
+
+$hospital_id = (int)$auth->getSessionData("hospital_id");
+$patient_id  = (int)($_GET["patient_id"] ?? 0);
 
 $success = "";
 $error   = "";
@@ -16,12 +29,30 @@ $error   = "";
 if ($patient_id <= 0) {
   die("Invalid patient_id");
 }
+
+// Load patient using OOP (optional - kept as you had it)
+$patientObj = new Patient($conn);
+if (!$patientObj->loadById($patient_id)) {
+  die("Patient not found");
+}
+
+/**
+ * ✅ FIX: Fetch patient + insurance name (and contract check)
+ * Hospital can add record only if insurance contracted
+ */
 $stmt = $conn->prepare("
-  SELECT p.patient_id, p.full_name, p.national_id
+  SELECT 
+    p.patient_id,
+    p.full_name,
+    p.national_id,
+    p.insurance_id,
+    mi.name AS insurance_name
   FROM patients p
   JOIN insurance_hospitals ih
     ON ih.insurance_id = p.insurance_id
-   AND ih.hospital_id = ?
+   AND ih.hospital_id  = ?
+  LEFT JOIN medical_insurances mi
+    ON mi.insurance_id = p.insurance_id
   WHERE p.patient_id = ?
   LIMIT 1
 ");
@@ -31,112 +62,82 @@ $patient = $stmt->get_result()->fetch_assoc();
 $stmt->close();
 
 if (!$patient) {
-  die("This patient’s insurance is not contracted with your hospital.");
+  die("This patient's insurance is not contracted with your hospital.");
 }
 
+$insuranceName = trim((string)($patient["insurance_name"] ?? ""));
+$insuranceId   = (int)($patient["insurance_id"] ?? 0);
 
+// Handle form submission
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
-  // helper: convert empty to null
-  function n($v) { $v = trim($v ?? ""); return $v === "" ? null : $v; }
-  function b($v) { return isset($v) && $v == "1" ? 1 : 0; }
+  // Create Medical Record object
+  $record = new MedicalRecord($conn);
 
-  $age = n($_POST["age"]);
-  $checkin_date = n($_POST["checkin_date"]);
-  $checkout_date = n($_POST["checkout_date"]);
+  // Set basic info
+  $record->setPatientId($patient_id);
+  $record->setAge((int)Validator::nullIfEmpty($_POST["age"]));
+  $record->setCheckinDate(Validator::nullIfEmpty($_POST["checkin_date"]));
+  $record->setCheckoutDate(Validator::nullIfEmpty($_POST["checkout_date"]));
 
-  $cbc_hb1 = n($_POST["cbc_hb1"]);
-  $cbc_tlc1 = n($_POST["cbc_tlc1"]);
-  $cbc_plat1 = n($_POST["cbc_plat1"]);
-  $blood_uria1 = n($_POST["blood_uria1"]);
-  $blood_creatinine1 = n($_POST["blood_creatinine1"]);
-
-  $cbc_hb2 = n($_POST["cbc_hb2"]);
-  $cbc_tlc2 = n($_POST["cbc_tlc2"]);
-  $cbc_plat2 = n($_POST["cbc_plat2"]);
-  $blood_uria2 = n($_POST["blood_uria2"]);
-  $blood_creatinine2 = n($_POST["blood_creatinine2"]);
-
-  $bmi = n($_POST["bmi"]);
-  $glucose = n($_POST["glucose"]);
-  $systolic_bp = n($_POST["systolic_bp"]);
-
-  $month = n($_POST["month"]);
-  $admission_count = n($_POST["admission_count"]);
-
-  $avg_creatinine = n($_POST["avg_creatinine"]);
-  $avg_urea = n($_POST["avg_urea"]);
-  $avg_hb = n($_POST["avg_hb"]);
-  $avg_tlc = n($_POST["avg_tlc"]);
-  $avg_platelets = n($_POST["avg_platelets"]);
-
-  $length_of_stay = n($_POST["length_of_stay"]);
-  $smoking_status = n($_POST["smoking_status"]);
-  $physical_activity_level = n($_POST["physical_activity_level"]);
-
-  $has_diabetes = b($_POST["has_diabetes"] ?? 0);
-  $has_hypertension = b($_POST["has_hypertension"] ?? 0);
-  $has_kidney_disease = b($_POST["has_kidney_disease"] ?? 0);
-  $has_heart_disease = b($_POST["has_heart_disease"] ?? 0);
-
-  $diagnosis = n($_POST["diagnosis"]);
-
-  $sql = "
-    INSERT INTO medical_records (
-      patient_id, age, checkin_date, checkout_date,
-      cbc_hb1, cbc_tlc1, cbc_plat1, blood_uria1, blood_creatinine1,
-      cbc_hb2, cbc_tlc2, cbc_plat2, blood_uria2, blood_creatinine2,
-      bmi, glucose, systolic_bp,
-      month, admission_count,
-      avg_creatinine, avg_urea, avg_hb, avg_tlc, avg_platelets,
-      length_of_stay,
-      smoking_status, physical_activity_level,
-      has_diabetes, has_hypertension, has_kidney_disease, has_heart_disease,
-      diagnosis
-    ) VALUES (
-      ?, ?, ?, ?,
-      ?, ?, ?, ?, ?,
-      ?, ?, ?, ?, ?,
-      ?, ?, ?,
-      ?, ?,
-      ?, ?, ?, ?, ?,
-      ?,
-      ?, ?,
-      ?, ?, ?, ?,
-      ?
-    )
-  ";
-
-  $stmt = $conn->prepare($sql);
-
-  $stmt->bind_param(
-    "iissddddddddd" . "dddiidddddd" . "issiiii" . "s",
-    $patient_id, $age, $checkin_date, $checkout_date,
-
-    $cbc_hb1, $cbc_tlc1, $cbc_plat1, $blood_uria1, $blood_creatinine1,
-    $cbc_hb2, $cbc_tlc2, $cbc_plat2, $blood_uria2, $blood_creatinine2,
-
-    $bmi, $glucose, $systolic_bp,
-
-    $month, $admission_count,
-
-    $avg_creatinine, $avg_urea, $avg_hb, $avg_tlc, $avg_platelets,
-
-    $length_of_stay,
-
-    $smoking_status, $physical_activity_level,
-
-    $has_diabetes, $has_hypertension, $has_kidney_disease, $has_heart_disease,
-
-    $diagnosis
+  // Set lab values round 1 & 2
+  $record->setLabValues(
+    Validator::nullIfEmpty($_POST["cbc_hb1"]),
+    Validator::nullIfEmpty($_POST["cbc_tlc1"]),
+    Validator::nullIfEmpty($_POST["cbc_plat1"]),
+    Validator::nullIfEmpty($_POST["blood_uria1"]),
+    Validator::nullIfEmpty($_POST["blood_creatinine1"]),
+    Validator::nullIfEmpty($_POST["cbc_hb2"]),
+    Validator::nullIfEmpty($_POST["cbc_tlc2"]),
+    Validator::nullIfEmpty($_POST["cbc_plat2"]),
+    Validator::nullIfEmpty($_POST["blood_uria2"]),
+    Validator::nullIfEmpty($_POST["blood_creatinine2"])
   );
 
-  if ($stmt->execute()) {
+  // Set vitals
+  $record->setBMI(Validator::nullIfEmpty($_POST["bmi"]));
+  $record->setGlucose(Validator::nullIfEmpty($_POST["glucose"]));
+  $record->setSystolicBP(Validator::nullIfEmpty($_POST["systolic_bp"]));
+
+  // Set aggregates
+  $record->setAggregates(
+    Validator::nullIfEmpty($_POST["month"]),
+    Validator::nullIfEmpty($_POST["admission_count"]),
+    Validator::nullIfEmpty($_POST["avg_creatinine"]),
+    Validator::nullIfEmpty($_POST["avg_urea"]),
+    Validator::nullIfEmpty($_POST["avg_hb"]),
+    Validator::nullIfEmpty($_POST["avg_tlc"]),
+    Validator::nullIfEmpty($_POST["avg_platelets"])
+  );
+
+  // Set lifestyle
+  $record->setLifestyle(
+    Validator::nullIfEmpty($_POST["length_of_stay"]),
+    Validator::nullIfEmpty($_POST["smoking_status"]),
+    Validator::nullIfEmpty($_POST["physical_activity_level"])
+  );
+
+  // Set risk flags
+  $record->setRiskFlags(
+    Validator::boolToInt($_POST["has_diabetes"] ?? 0),
+    Validator::boolToInt($_POST["has_hypertension"] ?? 0),
+    Validator::boolToInt($_POST["has_kidney_disease"] ?? 0),
+    Validator::boolToInt($_POST["has_heart_disease"] ?? 0)
+  );
+
+  // Set diagnosis
+  $record->setDiagnosis(Validator::nullIfEmpty($_POST["diagnosis"]));
+
+  // Save to database
+  if ($record->create()) {
     $success = "Medical record added successfully ✅";
   } else {
-    $error = "Insert failed: " . $stmt->error;
+    $error = "Failed to create medical record";
   }
-  $stmt->close();
+}
+
+function e($v): string {
+  return htmlspecialchars((string)$v, ENT_QUOTES, "UTF-8");
 }
 ?>
 <!DOCTYPE html>
@@ -150,6 +151,21 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
   <link href="https://fonts.googleapis.com/css?family=Nunito:200,300,400,600,700,800,900" rel="stylesheet">
   <link href="css/sb-admin-2.min.css" rel="stylesheet">
+
+  <style>
+    .ins-badge {
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      padding: 4px 10px;
+      border-radius: 20px;
+      border: 1px solid rgba(255,255,255,.5);
+      background: rgba(255,255,255,.18);
+      color: #fff;
+      font-weight: 700;
+      font-size: .85rem;
+    }
+  </style>
 </head>
 <body class="bg-light">
 
@@ -162,32 +178,46 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     <div class="card-header bg-primary text-white">
       <h5 class="mb-0">
         <i class="fas fa-notes-medical mr-2"></i>
-        Add Medical Record — <?= htmlspecialchars($patient["full_name"]) ?>
+        Add Medical Record — <?= e($patient["full_name"]) ?>
       </h5>
-      <small>National ID: <?= htmlspecialchars($patient["national_id"]) ?></small>
+
+      <small>
+        National ID: <?= e($patient["national_id"]) ?>
+
+        <?php if ($insuranceId > 0): ?>
+          <span class="ins-badge ml-2">
+            <i class="fas fa-shield-alt"></i>
+            <?= e($insuranceName !== "" ? $insuranceName : ("Insurance #".$insuranceId)) ?>
+          </span>
+        <?php else: ?>
+          <span class="badge badge-warning ml-2">No Insurance</span>
+        <?php endif; ?>
+      </small>
     </div>
 
     <div class="card-body">
-     <?php if ($success): ?>
-  <div class="alert alert-success">
-    <?= htmlspecialchars($success) ?><br>
-    <small>Redirecting to dashboard...</small>
-  </div>
 
-  <script>
-    setTimeout(function () {
-      window.location.href = "HospitalDashboard.php#patients";
-    }, 2000); // 2 seconds
-  </script>
-<?php endif; ?>
+      <?php if ($success): ?>
+        <div class="alert alert-success">
+          <?= e($success) ?><br>
+          <small>Redirecting to dashboard...</small>
+        </div>
+
+        <script>
+          setTimeout(function () {
+            window.location.href = "HospitalDashboard.php#patients";
+          }, 2000);
+        </script>
+      <?php endif; ?>
+
+      <?php if ($error): ?>
+        <div class="alert alert-danger"><?= e($error) ?></div>
+      <?php endif; ?>
 
       <form method="POST">
 
         <div class="row">
-          <div class="col-md-3 form-group">
-            <label>Age</label>
-            <input type="number" name="age" class="form-control">
-          </div>
+          
 
           <div class="col-md-3 form-group">
             <label>Check-in Date</label>
@@ -309,3 +339,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 <script src="Js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
+<?php
+if ($conn instanceof mysqli) { $conn->close(); }
+?>

@@ -168,7 +168,7 @@
             try {
                 setLoading(true);
 
-                const res = await fetch("patient_login.php", {
+                const res = await fetch("patient_login_OOP.php", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
@@ -184,7 +184,7 @@
                     return;
                 }
 
-                window.location.href = data.redirect || "PatientDashboard.html";
+                window.location.href = data.redirect || "PatientDashboard_OOP.php";
 
             } catch (e) {
                 alert("Network error: " + e.message);

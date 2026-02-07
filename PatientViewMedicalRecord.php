@@ -1,36 +1,67 @@
 <?php
+/**
+ * PatientViewMedicalRecord.php - OOP Version
+ * Patient can view ONLY his own record
+ */
+
 session_start();
-if (!isset($_SESSION["auth_type"]) || $_SESSION["auth_type"] !== "patient") {
-  header("Location: login.html");
-  exit;
-}
 
-require_once "db.php";
+require_once __DIR__ . '/Database.php';
+require_once __DIR__ . '/Auth.php';
+require_once __DIR__ . '/MedicalRecord.php';
+require_once __DIR__ . '/Validator.php';
 
-$patient_id = (int)($_SESSION["patient_id"] ?? 0);
+// Init
+$db   = new Database();
+$conn = $db->getConnection();
+$auth = new Auth($conn);
+
+// Auth check
+$auth->checkPatientAuth();
+
+$patient_id = (int)$auth->getSessionData("patient_id");
 $record_id  = (int)($_GET["record_id"] ?? 0);
 
 if ($patient_id <= 0 || $record_id <= 0) {
   die("Invalid request.");
 }
 
-function e($v) { return htmlspecialchars((string)$v, ENT_QUOTES, "UTF-8"); }
+function e($v): string {
+  return htmlspecialchars((string)$v, ENT_QUOTES, "UTF-8");
+}
 
-/* =========================
-   Fetch record (belongs to this patient only)
-========================= */
-$stmt = $conn->prepare("
-  SELECT *
-  FROM medical_records
-  WHERE record_id = ? AND patient_id = ?
-  LIMIT 1
-");
-$stmt->bind_param("ii", $record_id, $patient_id);
-$stmt->execute();
-$rec = $stmt->get_result()->fetch_assoc();
-$stmt->close();
+// Load record via OOP
+$mr = new MedicalRecord($conn);
 
-if (!$rec) {
+/**
+ * ✅ We expect your MedicalRecord class to support one of these:
+ * - loadByIdForPatient($record_id, $patient_id)
+ * - getRecordByIdForPatient($record_id, $patient_id)
+ *
+ * If none exist, we fallback to a safe prepared statement.
+ */
+$rec = null;
+
+if (method_exists($mr, "loadByIdForPatient")) {
+  $rec = $mr->loadByIdForPatient($record_id, $patient_id); // may return array or bool
+  if ($rec === true && method_exists($mr, "toArray")) $rec = $mr->toArray();
+} elseif (method_exists($mr, "getRecordByIdForPatient")) {
+  $rec = $mr->getRecordByIdForPatient($record_id, $patient_id);
+} else {
+  // Safe fallback query (OOP file but using $conn)
+  $stmt = $conn->prepare("
+    SELECT *
+    FROM medical_records
+    WHERE record_id = ? AND patient_id = ?
+    LIMIT 1
+  ");
+  $stmt->bind_param("ii", $record_id, $patient_id);
+  $stmt->execute();
+  $rec = $stmt->get_result()->fetch_assoc();
+  $stmt->close();
+}
+
+if (!$rec || !is_array($rec)) {
   die("Record not found or access denied.");
 }
 ?>
@@ -168,3 +199,6 @@ if (!$rec) {
 
 </body>
 </html>
+<?php
+if ($conn instanceof mysqli) { $conn->close(); }
+?>

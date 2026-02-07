@@ -1,67 +1,58 @@
 <?php
-session_start();
-if (!isset($_SESSION["auth_type"]) || $_SESSION["auth_type"] !== "staff" || ($_SESSION["role"] ?? "") !== "INSURANCE_STAFF") {
-  header("Location: login.html");
-  exit;
-}
+/**
+ * Add Patient Policy - OOP Version
+ * Fully functional - saves to database
+ */
 
-require_once "db.php";
+require_once __DIR__ . '/Database.php';
+require_once __DIR__ . '/Auth.php';
+require_once __DIR__ .'/Patient.php';
+require_once __DIR__ . '/Insurance.php';
+require_once __DIR__ . '/InsurancePlan.php';
+require_once __DIR__ . '/PatientPolicy.php';
+require_once __DIR__ .'/Validator.php';
 
-$insurance_id = (int)($_SESSION["insurance_id"] ?? 0);
-$patient_id   = (int)($_GET["patient_id"] ?? 0);
+// Initialize
+$db = new Database();
+$conn = $db->getConnection();
+$auth = new Auth($conn);
+
+// Check authentication
+$auth->checkStaffAuth("INSURANCE_STAFF");
+
+$insurance_id = (int)$auth->getSessionData("insurance_id");
+$patient_id = (int)($_GET["patient_id"] ?? 0);
 
 if ($insurance_id <= 0) die("Missing insurance_id in session.");
 if ($patient_id <= 0) die("Invalid patient_id");
 
-// helper
-function e($v) { return htmlspecialchars((string)$v, ENT_QUOTES, "UTF-8"); }
-
-// ✅ Fetch patient
-$stmt = $conn->prepare("SELECT patient_id, full_name, national_id, phone FROM patients WHERE patient_id=? LIMIT 1");
-$stmt->bind_param("i", $patient_id);
-$stmt->execute();
-$patient = $stmt->get_result()->fetch_assoc();
-$stmt->close();
-
-if (!$patient) die("Patient not found.");
-
-// ✅ Load insurance name
-$stmt = $conn->prepare("SELECT name FROM medical_insurances WHERE insurance_id=? LIMIT 1");
-$stmt->bind_param("i", $insurance_id);
-$stmt->execute();
-$ins = $stmt->get_result()->fetch_assoc();
-$stmt->close();
-$insurance_name = $ins["name"] ?? "Insurance";
-
-// ✅ Load plans for this insurance (dropdown)
-$plans = [];
-$stmt = $conn->prepare("
-  SELECT ip.id, ip.plan_name,
-         c.name AS category_name,
-         ct.name AS customer_type_name
-  FROM insurance_plan ip
-  JOIN category c ON c.id = ip.category_id
-  JOIN customer_type ct ON ct.id = ip.customer_type_id
-  WHERE ip.insurance_id = ?
-  ORDER BY ip.id DESC
-");
-$stmt->bind_param("i", $insurance_id);
-$stmt->execute();
-$res = $stmt->get_result();
-while ($row = $res->fetch_assoc()) $plans[] = $row;
-$stmt->close();
-
 $success = "";
 $error = "";
 
+// Load patient using OOP
+$patient = new Patient($conn);
+if (!$patient->loadById($patient_id)) {
+  die("Patient not found.");
+}
+
+// Load insurance using OOP
+$insurance = new Insurance($conn);
+$insurance->loadById($insurance_id);
+$insurance_name = $insurance->getName();
+
+// Load plans using OOP
+$insurancePlan = new InsurancePlan($conn);
+$plans = $insurancePlan->getPlansByInsurance($insurance_id);
+
+// Handle form submission
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
-
+  
   $insurance_plan_id = (int)($_POST["insurance_plan_id"] ?? 0);
-  $policy_number     = trim($_POST["policy_number"] ?? "");
-  $start_date        = trim($_POST["start_date"] ?? "");
-  $end_date          = trim($_POST["end_date"] ?? "");
-  $status            = trim($_POST["status"] ?? "active");
-
+  $policy_number = trim($_POST["policy_number"] ?? "");
+  $start_date = trim($_POST["start_date"] ?? "");
+  $end_date = trim($_POST["end_date"] ?? "");
+  $status = trim($_POST["status"] ?? "active");
+  
   if ($insurance_plan_id <= 0) {
     $error = "Please select a plan.";
   } elseif ($policy_number === "") {
@@ -69,43 +60,27 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
   } elseif ($start_date === "") {
     $error = "Start date is required.";
   } else {
-
-    // ✅ Safety: ensure the plan belongs to this insurance
-    $chk = $conn->prepare("SELECT id FROM insurance_plan WHERE id=? AND insurance_id=? LIMIT 1");
-    $chk->bind_param("ii", $insurance_plan_id, $insurance_id);
-    $chk->execute();
-    $ok = $chk->get_result()->fetch_assoc();
-    $chk->close();
-
-    if (!$ok) {
+    
+    // Validate plan belongs to insurance
+    if (!$insurancePlan->validatePlanBelongsToInsurance($insurance_plan_id, $insurance_id)) {
       $error = "Invalid plan selected.";
     } else {
-
-      // Convert empty end_date to NULL
-      $end_date_db = ($end_date === "") ? null : $end_date;
-
-      $stmt = $conn->prepare("
-        INSERT INTO patient_policy
-        (patient_id, insurance_id, insurance_plan_id, policy_number, start_date, end_date, status)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-      ");
-      $stmt->bind_param(
-        "iiissss",
-        $patient_id,
-        $insurance_id,
-        $insurance_plan_id,
-        $policy_number,
-        $start_date,
-        $end_date_db,
-        $status
-      );
-
-      if ($stmt->execute()) {
+      
+      // Create policy using OOP
+      $policy = new PatientPolicy($conn);
+      $policy->setPatientId($patient_id);
+      $policy->setInsuranceId($insurance_id);
+      $policy->setInsurancePlanId($insurance_plan_id);
+      $policy->setPolicyNumber($policy_number);
+      $policy->setStartDate($start_date);
+      $policy->setEndDate($end_date === "" ? null : $end_date);
+      $policy->setStatus($status);
+      
+      if ($policy->create()) {
         $success = "Patient policy added successfully ✅";
       } else {
-        $error = "Insert failed: " . $stmt->error;
+        $error = "Failed to create policy";
       }
-      $stmt->close();
     }
   }
 }
@@ -133,16 +108,16 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     <div class="card-header bg-primary text-white">
       <h5 class="mb-0">
         <i class="fas fa-file-signature mr-2"></i>
-        Add Patient Policy — <?= e($patient["full_name"]) ?>
+        Add Patient Policy — <?= Validator::sanitizeInput($patient->getFullName()) ?>
       </h5>
-      <small>National ID: <?= e($patient["national_id"]) ?> | Insurance: <?= e($insurance_name) ?></small>
+      <small>National ID: <?= Validator::sanitizeInput($patient->getNationalId()) ?> | Insurance: <?= Validator::sanitizeInput($insurance_name) ?> | <span class="badge badge-light"></span></small>
     </div>
 
     <div class="card-body">
 
       <?php if ($success): ?>
         <div class="alert alert-success">
-          <?= e($success) ?><br>
+          <?= Validator::sanitizeInput($success) ?><br>
           <small>Redirecting to dashboard...</small>
         </div>
 
@@ -154,7 +129,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
       <?php endif; ?>
 
       <?php if ($error): ?>
-        <div class="alert alert-danger"><?= e($error) ?></div>
+        <div class="alert alert-danger"><?= Validator::sanitizeInput($error) ?></div>
       <?php endif; ?>
 
       <form method="POST">
@@ -166,11 +141,11 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         <div class="row">
           <div class="col-md-4 form-group">
             <label>Patient ID</label>
-            <input class="form-control" value="<?= (int)$patient["patient_id"] ?>" readonly>
+            <input class="form-control" value="<?= (int)$patient->getPatientId() ?>" readonly>
           </div>
           <div class="col-md-4 form-group">
             <label>Phone</label>
-            <input class="form-control" value="<?= e($patient["phone"]) ?>" readonly>
+            <input class="form-control" value="<?= Validator::sanitizeInput($patient->getPhone()) ?>" readonly>
           </div>
           <div class="col-md-4 form-group">
             <label>Status</label>
@@ -195,7 +170,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
               <option value="">Select plan...</option>
               <?php foreach ($plans as $p): ?>
                 <option value="<?= (int)$p["id"] ?>">
-                  <?= e($p["plan_name"]) ?> (<?= e($p["category_name"]) ?> / <?= e($p["customer_type_name"]) ?>)
+                  <?= Validator::sanitizeInput($p["plan_name"]) ?> (<?= Validator::sanitizeInput($p["category_name"]) ?> / <?= Validator::sanitizeInput($p["customer_type_name"]) ?>)
                 </option>
               <?php endforeach; ?>
             </select>

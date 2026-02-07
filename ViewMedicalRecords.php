@@ -1,19 +1,35 @@
 <?php
+/**
+ * ViewMedicalRecords.php (Hospital Staff) - 
+ * ✅ Uses: Database, Auth, Validator
+ * ✅ No added_by_hospital_id
+ * ✅ Hospital can view patient ONLY if insurance_hospitals has contract (insurance_id, hospital_id)
+ */
+
 session_start();
 
-if (!isset($_SESSION["auth_type"]) || $_SESSION["auth_type"] !== "staff" || ($_SESSION["role"] ?? "") !== "HOSPITAL_STAFF") {
-  header("Location: login.html");
-  exit;
-}
+require_once __DIR__ . "/Database.php";
+require_once __DIR__ . "/Auth.php";
+require_once __DIR__ . "/Validator.php";
 
-require_once "db.php";
+$db   = new Database();
+$conn = $db->getConnection();
+$auth = new Auth($conn);
 
-$hospital_id = (int)($_SESSION["hospital_id"] ?? 1);
+// ✅ auth check
+$auth->checkStaffAuth("HOSPITAL_STAFF");
+
+$hospital_id = (int)($auth->getSessionData("hospital_id") ?? 0);
 $patient_id  = (int)($_GET["patient_id"] ?? 0);
 
-if ($patient_id <= 0) die("Missing patient_id");
+if ($hospital_id <= 0) {
+  die("Missing hospital_id in session.");
+}
+if ($patient_id <= 0) {
+  die("Missing patient_id");
+}
 
-function e($v) {
+function e($v): string {
   return htmlspecialchars((string)$v, ENT_QUOTES, "UTF-8");
 }
 
@@ -28,10 +44,9 @@ function table_has_column(mysqli $conn, string $table, string $col): bool {
 }
 
 $patient_ins_col = null;
-foreach (["insurance_id","medical_insurance_id","ins_id"] as $c) {
+foreach (["insurance_id", "medical_insurance_id", "ins_id"] as $c) {
   if (table_has_column($conn, "patients", $c)) { $patient_ins_col = $c; break; }
 }
-
 if (!$patient_ins_col) {
   die("patients table does not contain insurance_id (or medical_insurance_id / ins_id).");
 }
@@ -42,6 +57,7 @@ $ins_name_col = null;
 $ins_logo_col = null;
 
 $cols = $conn->query("SHOW COLUMNS FROM medical_insurances");
+if (!$cols) die("medical_insurances table not found.");
 while ($r = $cols->fetch_assoc()) {
   $f = strtolower($r["Field"]);
   if (!$ins_pk && in_array($f, ["id","insurance_id","medical_insurance_id"])) $ins_pk = $r["Field"];
@@ -53,10 +69,8 @@ if (!$ins_name_col) $ins_name_col = "name";
 
 /* =========================
    Fetch Patient Info WITH CONTRACT CHECK
-   Hospital can view patient only if:
-   insurance_hospitals has (patient_insurance_id, hospital_id)
 ========================= */
-$stmt = $conn->prepare("
+$sql = "
   SELECT p.patient_id, p.full_name, p.national_id, p.phone, p.gender, p.address,
          p.`$patient_ins_col` AS insurance_fk
   FROM patients p
@@ -65,7 +79,9 @@ $stmt = $conn->prepare("
    AND ih.hospital_id  = ?
   WHERE p.patient_id = ?
   LIMIT 1
-");
+";
+
+$stmt = $conn->prepare($sql);
 $stmt->bind_param("ii", $hospital_id, $patient_id);
 $stmt->execute();
 $patient = $stmt->get_result()->fetch_assoc();
@@ -80,7 +96,6 @@ if (!$patient) {
 ========================= */
 $insurance_name = null;
 $insurance_logo = null;
-
 $insurance_fk = (int)($patient["insurance_fk"] ?? 0);
 
 if ($insurance_fk > 0) {
@@ -236,9 +251,6 @@ if (isset($_GET["record_id"])) {
     </div>
   </div>
 
-  <!-- rest of your page stays the same -->
-  <!-- (Records table + details block unchanged) -->
-
   <!-- Records Table -->
   <div class="card shadow mb-4">
     <div class="card-header py-3">
@@ -318,7 +330,7 @@ if (isset($_GET["record_id"])) {
     </div>
   </div>
 
-  <!-- DETAILS BLOCK remains as you had it -->
+  <!-- DETAILS BLOCK -->
   <?php if ($selected_record): ?>
     <div id="details" class="card shadow mt-4">
       <div class="card-header d-flex justify-content-between align-items-center">
@@ -331,64 +343,64 @@ if (isset($_GET["record_id"])) {
         </a>
       </div>
 
-     <div class="card-body">
-  <div class="row">
+      <div class="card-body">
+        <div class="row">
 
-    <div class="col-md-6 mb-2"><strong>Created At:</strong> <?= e($selected_record["created_at"] ?? "") ?></div>
-    <div class="col-md-6 mb-2"><strong>Age:</strong> <?= e($selected_record["age"] ?? "") ?></div>
+          <div class="col-md-6 mb-2"><strong>Created At:</strong> <?= e($selected_record["created_at"] ?? "") ?></div>
+          <div class="col-md-6 mb-2"><strong>Age:</strong> <?= e($selected_record["age"] ?? "") ?></div>
 
-    <div class="col-md-6 mb-2"><strong>Check-in Date:</strong> <?= e($selected_record["checkin_date"] ?? "") ?></div>
-    <div class="col-md-6 mb-2"><strong>Check-out Date:</strong> <?= e($selected_record["checkout_date"] ?? "") ?></div>
+          <div class="col-md-6 mb-2"><strong>Check-in Date:</strong> <?= e($selected_record["checkin_date"] ?? "") ?></div>
+          <div class="col-md-6 mb-2"><strong>Check-out Date:</strong> <?= e($selected_record["checkout_date"] ?? "") ?></div>
 
-    <div class="col-md-6 mb-2"><strong>Length of Stay:</strong> <?= e($selected_record["length_of_stay"] ?? "") ?></div>
-    <div class="col-md-6 mb-2"><strong>BMI:</strong> <?= e($selected_record["bmi"] ?? "") ?></div>
+          <div class="col-md-6 mb-2"><strong>Length of Stay:</strong> <?= e($selected_record["length_of_stay"] ?? "") ?></div>
+          <div class="col-md-6 mb-2"><strong>BMI:</strong> <?= e($selected_record["bmi"] ?? "") ?></div>
 
-    <div class="col-md-6 mb-2"><strong>Glucose:</strong> <?= e($selected_record["glucose"] ?? "") ?></div>
-    <div class="col-md-6 mb-2"><strong>Systolic BP:</strong> <?= e($selected_record["systolic_bp"] ?? "") ?></div>
+          <div class="col-md-6 mb-2"><strong>Glucose:</strong> <?= e($selected_record["glucose"] ?? "") ?></div>
+          <div class="col-md-6 mb-2"><strong>Systolic BP:</strong> <?= e($selected_record["systolic_bp"] ?? "") ?></div>
 
-    <hr class="w-100">
+          <hr class="w-100">
 
-    <div class="col-md-4 mb-2"><strong>CBC-HB1:</strong> <?= e($selected_record["cbc_hb1"] ?? "") ?></div>
-    <div class="col-md-4 mb-2"><strong>CBC-TLC1:</strong> <?= e($selected_record["cbc_tlc1"] ?? "") ?></div>
-    <div class="col-md-4 mb-2"><strong>CBC-PLAT1:</strong> <?= e($selected_record["cbc_plat1"] ?? "") ?></div>
+          <div class="col-md-4 mb-2"><strong>CBC-HB1:</strong> <?= e($selected_record["cbc_hb1"] ?? "") ?></div>
+          <div class="col-md-4 mb-2"><strong>CBC-TLC1:</strong> <?= e($selected_record["cbc_tlc1"] ?? "") ?></div>
+          <div class="col-md-4 mb-2"><strong>CBC-PLAT1:</strong> <?= e($selected_record["cbc_plat1"] ?? "") ?></div>
 
-    <div class="col-md-4 mb-2"><strong>Blood Urea 1:</strong> <?= e($selected_record["blood_uria1"] ?? "") ?></div>
-    <div class="col-md-4 mb-2"><strong>Creatinine 1:</strong> <?= e($selected_record["blood_creatinine1"] ?? "") ?></div>
+          <div class="col-md-4 mb-2"><strong>Blood Urea 1:</strong> <?= e($selected_record["blood_uria1"] ?? "") ?></div>
+          <div class="col-md-4 mb-2"><strong>Creatinine 1:</strong> <?= e($selected_record["blood_creatinine1"] ?? "") ?></div>
 
-    <div class="col-md-4 mb-2"><strong>CBC-HB2:</strong> <?= e($selected_record["cbc_hb2"] ?? "") ?></div>
-    <div class="col-md-4 mb-2"><strong>CBC-TLC2:</strong> <?= e($selected_record["cbc_tlc2"] ?? "") ?></div>
-    <div class="col-md-4 mb-2"><strong>CBC-PLAT2:</strong> <?= e($selected_record["cbc_plat2"] ?? "") ?></div>
+          <div class="col-md-4 mb-2"><strong>CBC-HB2:</strong> <?= e($selected_record["cbc_hb2"] ?? "") ?></div>
+          <div class="col-md-4 mb-2"><strong>CBC-TLC2:</strong> <?= e($selected_record["cbc_tlc2"] ?? "") ?></div>
+          <div class="col-md-4 mb-2"><strong>CBC-PLAT2:</strong> <?= e($selected_record["cbc_plat2"] ?? "") ?></div>
 
-    <div class="col-md-4 mb-2"><strong>Blood Urea 2:</strong> <?= e($selected_record["blood_uria2"] ?? "") ?></div>
-    <div class="col-md-4 mb-2"><strong>Creatinine 2:</strong> <?= e($selected_record["blood_creatinine2"] ?? "") ?></div>
+          <div class="col-md-4 mb-2"><strong>Blood Urea 2:</strong> <?= e($selected_record["blood_uria2"] ?? "") ?></div>
+          <div class="col-md-4 mb-2"><strong>Creatinine 2:</strong> <?= e($selected_record["blood_creatinine2"] ?? "") ?></div>
 
-    <hr class="w-100">
+          <hr class="w-100">
 
-    <div class="col-md-4 mb-2"><strong>Smoking Status:</strong> <?= e($selected_record["smoking_status"] ?? "") ?></div>
-    <div class="col-md-4 mb-2"><strong>Physical Activity:</strong> <?= e($selected_record["physical_activity_level"] ?? "") ?></div>
-    <div class="col-md-4 mb-2"><strong>Admission Count:</strong> <?= e($selected_record["admission_count"] ?? "") ?></div>
+          <div class="col-md-4 mb-2"><strong>Smoking Status:</strong> <?= e($selected_record["smoking_status"] ?? "") ?></div>
+          <div class="col-md-4 mb-2"><strong>Physical Activity:</strong> <?= e($selected_record["physical_activity_level"] ?? "") ?></div>
+          <div class="col-md-4 mb-2"><strong>Admission Count:</strong> <?= e($selected_record["admission_count"] ?? "") ?></div>
 
-    <div class="col-md-4 mb-2"><strong>Avg Creatinine:</strong> <?= e($selected_record["avg_creatinine"] ?? "") ?></div>
-    <div class="col-md-4 mb-2"><strong>Avg Urea:</strong> <?= e($selected_record["avg_urea"] ?? "") ?></div>
-    <div class="col-md-4 mb-2"><strong>Avg HB:</strong> <?= e($selected_record["avg_hb"] ?? "") ?></div>
+          <div class="col-md-4 mb-2"><strong>Avg Creatinine:</strong> <?= e($selected_record["avg_creatinine"] ?? "") ?></div>
+          <div class="col-md-4 mb-2"><strong>Avg Urea:</strong> <?= e($selected_record["avg_urea"] ?? "") ?></div>
+          <div class="col-md-4 mb-2"><strong>Avg HB:</strong> <?= e($selected_record["avg_hb"] ?? "") ?></div>
 
-    <div class="col-md-4 mb-2"><strong>Avg TLC:</strong> <?= e($selected_record["avg_tlc"] ?? "") ?></div>
-    <div class="col-md-4 mb-2"><strong>Avg Platelets:</strong> <?= e($selected_record["avg_platelets"] ?? "") ?></div>
-    <div class="col-md-4 mb-2"><strong>Month:</strong> <?= e($selected_record["month"] ?? "") ?></div>
+          <div class="col-md-4 mb-2"><strong>Avg TLC:</strong> <?= e($selected_record["avg_tlc"] ?? "") ?></div>
+          <div class="col-md-4 mb-2"><strong>Avg Platelets:</strong> <?= e($selected_record["avg_platelets"] ?? "") ?></div>
+          <div class="col-md-4 mb-2"><strong>Month:</strong> <?= e($selected_record["month"] ?? "") ?></div>
 
-    <hr class="w-100">
+          <hr class="w-100">
 
-    <div class="col-md-6 mb-2"><strong>Diagnosis:</strong> <?= e($selected_record["diagnosis"] ?? "") ?></div>
-    <div class="col-md-6 mb-2">
-      <strong>Risks:</strong>
-      <?php if (!empty($selected_record["has_diabetes"])): ?><span class="badge badge-warning">Diabetes</span><?php endif; ?>
-      <?php if (!empty($selected_record["has_hypertension"])): ?><span class="badge badge-danger">Hypertension</span><?php endif; ?>
-      <?php if (!empty($selected_record["has_kidney_disease"])): ?><span class="badge badge-info">Kidney Disease</span><?php endif; ?>
-      <?php if (!empty($selected_record["has_heart_disease"])): ?><span class="badge badge-primary">Heart Disease</span><?php endif; ?>
-    </div>
+          <div class="col-md-6 mb-2"><strong>Diagnosis:</strong> <?= e($selected_record["diagnosis"] ?? "") ?></div>
+          <div class="col-md-6 mb-2">
+            <strong>Risks:</strong>
+            <?php if (!empty($selected_record["has_diabetes"])): ?><span class="badge badge-warning">Diabetes</span><?php endif; ?>
+            <?php if (!empty($selected_record["has_hypertension"])): ?><span class="badge badge-danger">Hypertension</span><?php endif; ?>
+            <?php if (!empty($selected_record["has_kidney_disease"])): ?><span class="badge badge-info">Kidney Disease</span><?php endif; ?>
+            <?php if (!empty($selected_record["has_heart_disease"])): ?><span class="badge badge-primary">Heart Disease</span><?php endif; ?>
+          </div>
 
-  </div>
-</div>
+        </div>
+      </div>
 
     </div>
   <?php endif; ?>
@@ -402,3 +414,6 @@ if (isset($_GET["record_id"])) {
 
 </body>
 </html>
+<?php
+if ($conn instanceof mysqli) { $conn->close(); }
+?>
