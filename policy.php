@@ -37,6 +37,11 @@ $policies = $insurancePlan->getAllPoliciesForInsurance($insurance_id);
 // Check completion status
 $completion_status = $insurancePlan->getPolicyCompletionStatus($insurance_id);
 
+// Read and clear flash messages
+$flash_success = $_SESSION['flash_success'] ?? null;
+$flash_error   = $_SESSION['flash_error']   ?? null;
+unset($_SESSION['flash_success'], $_SESSION['flash_error']);
+
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -136,7 +141,7 @@ $completion_status = $insurancePlan->getPolicyCompletionStatus($insurance_id);
       </h3>
       <p class="text-muted mb-0">Configure and manage all insurance policy types</p>
     </div>
-    
+
     <div class="text-right">
       <a href="CreateAllPolicies.php" class="btn btn-primary mb-2">
         <i class="fas fa-plus-circle mr-2"></i>
@@ -155,6 +160,24 @@ $completion_status = $insurancePlan->getPolicyCompletionStatus($insurance_id);
     </div>
   </div>
 
+  <!-- ── Flash Messages ───────────────────────────────────────────────────── -->
+  <?php if ($flash_success): ?>
+  <div class="alert alert-success alert-dismissible fade show" role="alert">
+    <i class="fas fa-check-circle mr-2"></i>
+    <strong>Success!</strong> <?= htmlspecialchars($flash_success) ?>
+    <button type="button" class="close" data-dismiss="alert">&times;</button>
+  </div>
+  <?php endif; ?>
+
+  <?php if ($flash_error): ?>
+  <div class="alert alert-danger alert-dismissible fade show" role="alert">
+    <i class="fas fa-exclamation-circle mr-2"></i>
+    <strong>Error:</strong> <?= htmlspecialchars($flash_error) ?>
+    <button type="button" class="close" data-dismiss="alert">&times;</button>
+  </div>
+  <?php endif; ?>
+
+  <!-- ── Completion Status Alert ──────────────────────────────────────────── -->
   <?php if ($completion_status['completed'] < $completion_status['total']): ?>
   <div class="alert alert-info alert-dismissible fade show" role="alert">
     <i class="fas fa-info-circle mr-2"></i>
@@ -186,7 +209,7 @@ $completion_status = $insurancePlan->getPolicyCompletionStatus($insurance_id);
               </span>
             <?php endif; ?>
           </div>
-          
+
           <h5 class="mb-1 font-weight-bold text-primary">
             <i class="fas <?= $policy['category_id'] == 1 ? 'fa-user' : 'fa-crown' ?> mr-2"></i>
             <?= Validator::sanitizeInput($policy['category_name']) ?> - <?= Validator::sanitizeInput($policy['customer_type_name']) ?>
@@ -204,9 +227,9 @@ $completion_status = $insurancePlan->getPolicyCompletionStatus($insurance_id);
                 <i class="fas fa-medkit mr-1"></i> Covered Services
               </h6>
               <div>
-                <?php 
+                <?php
                 $services = $insurancePlan->getServicesByPlanId($policy['plan_id']);
-                foreach ($services as $service): 
+                foreach ($services as $service):
                   if ($service['is_enabled']):
                 ?>
                   <span class="service-badge bg-success text-white">
@@ -214,9 +237,9 @@ $completion_status = $insurancePlan->getPolicyCompletionStatus($insurance_id);
                     <?= Validator::sanitizeInput($service['service_name']) ?>
                     (<?= $service['coverage_percent'] ?>%)
                   </span>
-                <?php 
+                <?php
                   endif;
-                endforeach; 
+                endforeach;
                 ?>
               </div>
             </div>
@@ -247,7 +270,7 @@ $completion_status = $insurancePlan->getPolicyCompletionStatus($insurance_id);
         </div>
 
         <div class="card-footer bg-white border-top">
-          <a href="EditPolicy.php?category_id=<?= $policy['category_id'] ?>&customer_type_id=<?= $policy['customer_type_id'] ?>" 
+          <a href="EditPolicy.php?category_id=<?= $policy['category_id'] ?>&customer_type_id=<?= $policy['customer_type_id'] ?>"
              class="btn btn-primary btn-block">
             <i class="fas fa-edit mr-2"></i> <?= $policy['is_configured'] ? 'Edit Policy' : 'Configure Policy' ?>
           </a>
