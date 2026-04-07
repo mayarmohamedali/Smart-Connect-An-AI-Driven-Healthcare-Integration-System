@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Feb 05, 2026 at 10:15 AM
+-- Generation Time: Apr 07, 2026 at 11:46 AM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.2.12
 
@@ -39,6 +39,27 @@ CREATE TABLE `category` (
 INSERT INTO `category` (`id`, `name`) VALUES
 (1, 'Normal'),
 (2, 'VIP');
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `claims`
+--
+
+CREATE TABLE `claims` (
+  `claim_id` int(10) UNSIGNED NOT NULL,
+  `record_id` int(10) UNSIGNED NOT NULL,
+  `patient_id` int(10) UNSIGNED NOT NULL,
+  `insurance_id` int(10) UNSIGNED NOT NULL,
+  `service_id` int(10) UNSIGNED DEFAULT NULL,
+  `treatment_cost` decimal(10,2) DEFAULT NULL,
+  `coverage_percentage` decimal(5,2) DEFAULT NULL,
+  `cost_coverage_ratio` decimal(8,6) DEFAULT NULL,
+  `claim_amount` decimal(10,2) DEFAULT NULL,
+  `avg_claim` decimal(12,6) DEFAULT NULL,
+  `claim_status` enum('Approved','Rejected','Pending') NOT NULL DEFAULT 'Pending',
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
 
@@ -137,7 +158,8 @@ CREATE TABLE `insurance_plan` (
 INSERT INTO `insurance_plan` (`id`, `insurance_id`, `category_id`, `customer_type_id`, `plan_name`) VALUES
 (7, 1, 1, 1, 'Plan 1-1-1'),
 (8, 1, 2, 1, 'Plan 1-2-1'),
-(9, 1, 1, 2, 'Plan 1-1-2');
+(9, 1, 1, 2, 'Plan 1-1-2'),
+(31, 1, 2, 2, 'Plan 1-2-2');
 
 -- --------------------------------------------------------
 
@@ -189,22 +211,47 @@ CREATE TABLE `medical_records` (
   `blood_creatinine2` decimal(7,2) DEFAULT NULL,
   `bmi` decimal(5,2) DEFAULT NULL,
   `glucose` decimal(7,2) DEFAULT NULL,
+  `cholesterol_level` decimal(7,2) DEFAULT NULL,
   `systolic_bp` int(11) DEFAULT NULL,
   `month` tinyint(4) DEFAULT NULL,
+  `year` smallint(6) DEFAULT NULL,
+  `day_of_week` varchar(10) DEFAULT NULL,
   `admission_count` int(11) DEFAULT NULL,
   `avg_creatinine` decimal(7,2) DEFAULT NULL,
   `avg_urea` decimal(7,2) DEFAULT NULL,
   `avg_hb` decimal(5,2) DEFAULT NULL,
   `avg_tlc` decimal(7,2) DEFAULT NULL,
   `avg_platelets` decimal(10,2) DEFAULT NULL,
+  `delta_hb` decimal(7,3) DEFAULT NULL,
+  `delta_tlc` decimal(7,3) DEFAULT NULL,
+  `delta_plat` decimal(10,3) DEFAULT NULL,
+  `delta_uria` decimal(7,3) DEFAULT NULL,
+  `delta_creatinine` decimal(7,3) DEFAULT NULL,
   `length_of_stay` int(11) DEFAULT NULL,
+  `avg_length_stay` decimal(10,6) DEFAULT NULL,
   `smoking_status` enum('Non-Smoker','Smoker','Former Smoker') DEFAULT NULL,
   `physical_activity_level` enum('Low','Moderate','High') DEFAULT NULL,
+  `diet_quality` enum('Poor','Average','Good') DEFAULT NULL,
+  `alcohol_consumption` tinyint(1) DEFAULT NULL,
+  `sleep_hours` decimal(4,1) DEFAULT NULL,
+  `stress_level` decimal(7,4) DEFAULT NULL,
+  `family_history` decimal(7,4) DEFAULT NULL,
+  `medications_count` decimal(7,4) DEFAULT NULL,
+  `risk_score` decimal(10,8) DEFAULT NULL,
+  `symptom_burden` decimal(10,8) DEFAULT NULL,
+  `seasonal_weight` decimal(10,8) DEFAULT NULL,
   `has_diabetes` tinyint(1) NOT NULL DEFAULT 0,
   `has_hypertension` tinyint(1) NOT NULL DEFAULT 0,
   `has_kidney_disease` tinyint(1) NOT NULL DEFAULT 0,
   `has_heart_disease` tinyint(1) NOT NULL DEFAULT 0,
+  `fever` decimal(7,4) DEFAULT NULL,
+  `cough` decimal(7,4) DEFAULT NULL,
+  `fatigue` decimal(7,4) DEFAULT NULL,
+  `chest_pain` tinyint(1) DEFAULT NULL,
+  `shortness_of_breath` decimal(7,4) DEFAULT NULL,
+  `headache` tinyint(1) DEFAULT NULL,
   `diagnosis` varchar(255) DEFAULT NULL,
+  `disease_category` varchar(50) DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
@@ -212,11 +259,12 @@ CREATE TABLE `medical_records` (
 -- Dumping data for table `medical_records`
 --
 
-INSERT INTO `medical_records` (`record_id`, `patient_id`, `age`, `checkin_date`, `checkout_date`, `cbc_hb1`, `cbc_tlc1`, `cbc_plat1`, `blood_uria1`, `blood_creatinine1`, `cbc_hb2`, `cbc_tlc2`, `cbc_plat2`, `blood_uria2`, `blood_creatinine2`, `bmi`, `glucose`, `systolic_bp`, `month`, `admission_count`, `avg_creatinine`, `avg_urea`, `avg_hb`, `avg_tlc`, `avg_platelets`, `length_of_stay`, `smoking_status`, `physical_activity_level`, `has_diabetes`, `has_hypertension`, `has_kidney_disease`, `has_heart_disease`, `diagnosis`, `created_at`) VALUES
-(1, 10, 30, '2026-01-28', '2026-02-01', 3.00, 4.00, 4.00, 6.00, 6.00, 2.00, 4.00, 6.00, 6.00, 2.00, 12.00, 23.00, 4, 1, 6, 5.00, 6.00, 7.00, 8.00, 6.00, 5, NULL, 'Moderate', 1, 0, 0, 0, 'diabetes', '2026-02-02 09:45:38'),
-(3, 11, 40, '2026-02-01', '2026-02-03', 3.00, 4.00, 4.00, 6.00, 6.00, 2.00, 5.00, 7.00, 8.00, 12.00, 12.00, 23.00, 5, 2, 6, 5.00, 6.00, 7.00, 8.00, 6.00, 5, 'Non-Smoker', 'Low', 1, 0, 0, 0, 'hypertensi', '2026-02-02 10:48:28'),
-(4, 12, 21, '2026-02-03', '2026-02-04', 3.00, 4.00, 4.00, 6.00, 6.00, 2.00, 5.00, 7.00, 8.00, 12.00, 12.00, 23.00, 5, 2, 6, 5.00, 6.00, 7.00, 8.00, 6.00, 2, 'Non-Smoker', 'Moderate', 1, 0, 0, 0, 'diabetes', '2026-02-04 00:14:58'),
-(5, 13, 22, '2026-02-01', '2026-02-02', 3.00, 4.00, 4.00, 6.00, 6.00, 4.00, 4.00, 6.00, 6.00, 12.00, 12.00, 23.00, 5, 2, 6, 5.00, 6.00, 7.00, 8.00, 6.00, 2, 'Non-Smoker', 'Low', 1, 0, 0, 0, 'diabetes', '2026-02-04 03:28:26');
+INSERT INTO `medical_records` (`record_id`, `patient_id`, `age`, `checkin_date`, `checkout_date`, `cbc_hb1`, `cbc_tlc1`, `cbc_plat1`, `blood_uria1`, `blood_creatinine1`, `cbc_hb2`, `cbc_tlc2`, `cbc_plat2`, `blood_uria2`, `blood_creatinine2`, `bmi`, `glucose`, `cholesterol_level`, `systolic_bp`, `month`, `year`, `day_of_week`, `admission_count`, `avg_creatinine`, `avg_urea`, `avg_hb`, `avg_tlc`, `avg_platelets`, `delta_hb`, `delta_tlc`, `delta_plat`, `delta_uria`, `delta_creatinine`, `length_of_stay`, `avg_length_stay`, `smoking_status`, `physical_activity_level`, `diet_quality`, `alcohol_consumption`, `sleep_hours`, `stress_level`, `family_history`, `medications_count`, `risk_score`, `symptom_burden`, `seasonal_weight`, `has_diabetes`, `has_hypertension`, `has_kidney_disease`, `has_heart_disease`, `fever`, `cough`, `fatigue`, `chest_pain`, `shortness_of_breath`, `headache`, `diagnosis`, `disease_category`, `created_at`) VALUES
+(1, 10, 30, '2026-01-28', '2026-02-01', 3.00, 4.00, 4.00, 6.00, 6.00, 2.00, 4.00, 6.00, 6.00, 2.00, 12.00, 23.00, NULL, 4, 1, NULL, NULL, 6, 5.00, 6.00, 7.00, 8.00, 6.00, NULL, NULL, NULL, NULL, NULL, 5, NULL, NULL, 'Moderate', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 1, 0, 0, 0, NULL, NULL, NULL, NULL, NULL, NULL, 'diabetes', NULL, '2026-02-02 09:45:38'),
+(3, 11, 40, '2026-02-01', '2026-02-03', 3.00, 4.00, 4.00, 6.00, 6.00, 2.00, 5.00, 7.00, 8.00, 12.00, 12.00, 23.00, NULL, 5, 2, NULL, NULL, 6, 5.00, 6.00, 7.00, 8.00, 6.00, NULL, NULL, NULL, NULL, NULL, 5, NULL, 'Non-Smoker', 'Low', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 1, 0, 0, 0, NULL, NULL, NULL, NULL, NULL, NULL, 'hypertensi', NULL, '2026-02-02 10:48:28'),
+(4, 12, 21, '2026-02-03', '2026-02-04', 3.00, 4.00, 4.00, 6.00, 6.00, 2.00, 5.00, 7.00, 8.00, 12.00, 12.00, 23.00, NULL, 5, 2, NULL, NULL, 6, 5.00, 6.00, 7.00, 8.00, 6.00, NULL, NULL, NULL, NULL, NULL, 2, NULL, 'Non-Smoker', 'Moderate', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 1, 0, 0, 0, NULL, NULL, NULL, NULL, NULL, NULL, 'diabetes', NULL, '2026-02-04 00:14:58'),
+(5, 13, 22, '2026-02-01', '2026-02-02', 3.00, 4.00, 4.00, 6.00, 6.00, 4.00, 4.00, 6.00, 6.00, 12.00, 12.00, 23.00, NULL, 5, 2, NULL, NULL, 6, 5.00, 6.00, 7.00, 8.00, 6.00, NULL, NULL, NULL, NULL, NULL, 2, NULL, 'Non-Smoker', 'Low', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 1, 0, 0, 0, NULL, NULL, NULL, NULL, NULL, NULL, 'diabetes', NULL, '2026-02-04 03:28:26'),
+(6, 19, 81, '2026-02-02', '2026-02-05', 3.00, 4.00, 4.00, 7.00, 10.00, 2.00, 4.00, 7.00, 8.00, 12.00, 12.00, 23.00, NULL, 5, 2, NULL, NULL, 6, 5.00, 6.00, 7.00, 8.00, 6.00, NULL, NULL, NULL, NULL, NULL, 5, NULL, 'Smoker', 'Low', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 1, 0, 1, 0, NULL, NULL, NULL, NULL, NULL, NULL, 'diabetes', NULL, '2026-02-06 05:28:14');
 
 -- --------------------------------------------------------
 
@@ -232,6 +280,7 @@ CREATE TABLE `patients` (
   `gender` enum('M','F') DEFAULT NULL,
   `address` varchar(255) DEFAULT NULL,
   `insurance_id` int(10) UNSIGNED DEFAULT NULL,
+  `category_id` int(10) UNSIGNED DEFAULT NULL,
   `is_active` tinyint(1) NOT NULL DEFAULT 1,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
@@ -240,12 +289,14 @@ CREATE TABLE `patients` (
 -- Dumping data for table `patients`
 --
 
-INSERT INTO `patients` (`patient_id`, `full_name`, `national_id`, `phone`, `gender`, `address`, `insurance_id`, `is_active`, `created_at`) VALUES
-(13, 'Mayar Mohamed', '30304070100464', '01003147822', 'F', 'fifth settlement', 1, 1, '2026-02-04 02:47:36'),
-(14, 'merna mohamed', '50506070200489', '01095463987', 'F', 'fifth settlement', 2, 1, '2026-02-04 02:48:59'),
-(15, 'mariam mohamed', '40405060700987', '01003147833', 'F', 'fifth settlement', 2, 1, '2026-02-04 04:01:24'),
-(16, 'mahy moatasem', '27312090134570', '01001720391', 'F', 'fifth settlement', 1, 1, '2026-02-05 07:12:31'),
-(17, 'mohamed farouk', '27312090345690', '01095347822', 'M', 'fifth settlement', 1, 1, '2026-02-05 07:25:37');
+INSERT INTO `patients` (`patient_id`, `full_name`, `national_id`, `phone`, `gender`, `address`, `insurance_id`, `category_id`, `is_active`, `created_at`) VALUES
+(13, 'Mayar Mohamed', '30304070100464', '01003147822', 'F', 'fifth settlement', 1, NULL, 1, '2026-02-04 02:47:36'),
+(14, 'merna mohamed', '50506070200489', '01095463987', 'F', 'fifth settlement', 2, NULL, 1, '2026-02-04 02:48:59'),
+(15, 'mariam mohamed', '40405060700987', '01003147833', 'F', 'fifth settlement', 2, NULL, 1, '2026-02-04 04:01:24'),
+(16, 'mahy moatasem', '27312090134570', '01001720391', 'F', 'fifth settlement', 1, NULL, 1, '2026-02-05 07:12:31'),
+(17, 'mohamed farouk', '27312090345690', '01095347822', 'M', 'fifth settlement', 1, NULL, 1, '2026-02-05 07:25:37'),
+(18, 'heba ayman', '27602150348290', '01006789906', 'F', 'maadi', 1, NULL, 1, '2026-02-05 09:17:46'),
+(19, 'khaled zaky', '24502010123456', '01009876544', 'M', 'fifth settlement', 1, NULL, 1, '2026-02-06 05:25:28');
 
 -- --------------------------------------------------------
 
@@ -274,7 +325,9 @@ INSERT INTO `patient_policy` (`patient_policy_id`, `patient_id`, `insurance_id`,
 (1, 11, 1, 8, 'AXA-3940', '2026-02-02', NULL, 'active', '2026-02-03 07:51:25'),
 (0, 12, 1, 9, 'AXA-3960', '2026-02-03', '2026-03-08', 'active', '2026-02-04 00:17:13'),
 (0, 13, 1, 9, 'AXA-3987', '2026-02-01', '2027-02-02', 'active', '2026-02-04 04:04:49'),
-(0, 16, 1, 7, 'AXA-3990', '2026-02-05', '2027-02-05', 'active', '2026-02-05 07:13:04');
+(0, 16, 1, 7, 'AXA-3990', '2026-02-05', '2027-02-05', 'active', '2026-02-05 07:13:04'),
+(0, 18, 1, 8, 'AXA-3988', '2026-02-04', '2026-02-10', 'active', '2026-02-06 09:02:28'),
+(0, 19, 1, 9, 'AXA-3991', '2026-02-06', '2027-02-06', 'active', '2026-02-06 05:26:04');
 
 -- --------------------------------------------------------
 
@@ -292,146 +345,6 @@ CREATE TABLE `plan_service_coverage` (
   `threshold_egp` decimal(10,2) NOT NULL DEFAULT 0.00,
   `copayment_percent` decimal(5,2) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-
---
--- Dumping data for table `plan_service_coverage`
---
-
-INSERT INTO `plan_service_coverage` (`id`, `insurance_plan_id`, `service_id`, `is_enabled`, `coverage_percent`, `deductible_egp`, `threshold_egp`, `copayment_percent`) VALUES
-(1, 7, 1, 1, 100.00, 0.00, 10000.00, 0.00),
-(2, 7, 2, 1, 80.00, 5000.00, 1000000.00, 20.00),
-(3, 7, 3, 1, 70.00, 2000.00, 50000.00, 30.00),
-(4, 7, 4, 1, 60.00, 1000.00, 30000.00, 40.00),
-(5, 7, 5, 1, 50.00, 500.00, 20000.00, 50.00),
-(6, 8, 1, 1, 70.00, 0.00, 100.00, 30.00),
-(7, 8, 2, 1, 80.00, 5000.00, 1000000.00, 60.00),
-(8, 8, 3, 1, 70.00, 2000.00, 50000.00, 30.00),
-(9, 8, 4, 1, 60.00, 1000.00, 30000.00, 40.00),
-(10, 8, 5, 1, 50.00, 500.00, 20000.00, 50.00),
-(1, 7, 1, 1, 100.00, 0.00, 10000.00, 0.00),
-(2, 7, 2, 1, 100.00, 5000.00, 1000000.00, 20.00),
-(3, 7, 3, 1, 70.00, 2000.00, 50000.00, 30.00),
-(4, 7, 4, 1, 60.00, 1000.00, 30000.00, 40.00),
-(5, 7, 5, 1, 50.00, 500.00, 20000.00, 50.00),
-(6, 8, 1, 1, 100.00, 0.00, 10000.00, 0.00),
-(7, 8, 2, 1, 80.00, 5000.00, 1000000.00, 20.00),
-(8, 8, 3, 1, 70.00, 2000.00, 50000.00, 30.00),
-(9, 8, 4, 1, 60.00, 1000.00, 30000.00, 40.00),
-(43, 22, 1, 1, 100.00, 0.00, 10000.00, 0.00),
-(44, 22, 2, 1, 80.00, 5000.00, 1000000.00, 20.00),
-(45, 22, 3, 1, 70.00, 2000.00, 50000.00, 30.00),
-(46, 22, 4, 1, 60.00, 1000.00, 30000.00, 40.00),
-(47, 22, 5, 1, 50.00, 500.00, 20000.00, 50.00),
-(0, 9, 1, 1, 80.00, 5000.00, 10000.00, 20.00),
-(0, 9, 2, 1, 80.00, 5000.00, 1000000.00, 20.00),
-(0, 9, 3, 1, 70.00, 2000.00, 50000.00, 30.00),
-(0, 9, 4, 1, 60.00, 1000.00, 30000.00, 40.00),
-(0, 9, 5, 1, 50.00, 500.00, 20000.00, 50.00),
-(0, 7, 1, 1, 70.00, 6000.00, 10000.00, 30.00),
-(0, 7, 2, 1, 80.00, 5000.00, 1000000.00, 20.00),
-(0, 7, 3, 1, 70.00, 2000.00, 50000.00, 30.00),
-(0, 7, 4, 1, 60.00, 1000.00, 30000.00, 40.00),
-(0, 7, 5, 1, 50.00, 500.00, 20000.00, 50.00),
-(0, 8, 1, 1, 100.00, 0.00, 10000.00, 0.00),
-(0, 8, 2, 1, 80.00, 5000.00, 1000000.00, 20.00),
-(0, 8, 3, 1, 70.00, 2000.00, 50000.00, 30.00),
-(0, 8, 4, 1, 60.00, 1000.00, 30000.00, 40.00),
-(0, 8, 5, 1, 50.00, 500.00, 20000.00, 50.00),
-(0, 7, 1, 1, 100.00, 0.00, 10000.00, 0.00),
-(0, 7, 2, 1, 80.00, 5000.00, 1000000.00, 20.00),
-(0, 7, 3, 1, 70.00, 2000.00, 50000.00, 30.00),
-(0, 7, 4, 1, 60.00, 1000.00, 30000.00, 40.00),
-(0, 7, 5, 1, 50.00, 500.00, 20000.00, 50.00),
-(0, 7, 1, 1, 100.00, 0.00, 10000.00, 0.00),
-(0, 7, 2, 1, 80.00, 5000.00, 1000000.00, 20.00),
-(0, 7, 3, 1, 70.00, 2000.00, 50000.00, 30.00),
-(0, 7, 4, 1, 60.00, 1000.00, 30000.00, 40.00),
-(0, 7, 5, 1, 50.00, 500.00, 20000.00, 50.00),
-(0, 7, 1, 1, 100.00, 0.00, 10000.00, 0.00),
-(0, 7, 2, 1, 80.00, 5000.00, 1000000.00, 20.00),
-(0, 7, 3, 1, 70.00, 2000.00, 50000.00, 30.00),
-(0, 7, 4, 1, 60.00, 1000.00, 30000.00, 40.00),
-(0, 7, 5, 1, 50.00, 500.00, 20000.00, 50.00),
-(0, 7, 1, 1, 100.00, 0.00, 10000.00, 0.00),
-(0, 7, 2, 1, 80.00, 5000.00, 1000000.00, 20.00),
-(0, 7, 3, 1, 70.00, 2000.00, 50000.00, 30.00),
-(0, 7, 4, 1, 60.00, 1000.00, 30000.00, 40.00),
-(0, 7, 5, 1, 50.00, 500.00, 20000.00, 50.00),
-(0, 9, 1, 1, 100.00, 0.00, 10000.00, 0.00),
-(0, 9, 2, 1, 80.00, 5000.00, 1000000.00, 20.00),
-(0, 9, 3, 1, 70.00, 2000.00, 50000.00, 30.00),
-(0, 9, 4, 1, 60.00, 1000.00, 30000.00, 40.00),
-(0, 9, 5, 1, 50.00, 500.00, 20000.00, 50.00),
-(0, 9, 1, 1, 100.00, 0.00, 10000.00, 0.00),
-(0, 9, 2, 1, 80.00, 5000.00, 1000000.00, 20.00),
-(0, 9, 3, 1, 70.00, 2000.00, 50000.00, 30.00),
-(0, 9, 4, 1, 60.00, 1000.00, 30000.00, 40.00),
-(0, 9, 5, 1, 50.00, 500.00, 20000.00, 50.00),
-(0, 7, 1, 1, 100.00, 0.00, 10000.00, 0.00),
-(0, 7, 2, 1, 80.00, 5000.00, 1000000.00, 20.00),
-(0, 7, 3, 1, 70.00, 2000.00, 50000.00, 30.00),
-(0, 7, 4, 1, 60.00, 1000.00, 30000.00, 40.00),
-(0, 7, 5, 1, 50.00, 500.00, 20000.00, 50.00),
-(0, 9, 1, 1, 100.00, 0.00, 10000.00, 0.00),
-(0, 9, 2, 1, 80.00, 5000.00, 1000000.00, 20.00),
-(0, 9, 3, 1, 70.00, 2000.00, 50000.00, 30.00),
-(0, 9, 4, 1, 60.00, 1000.00, 30000.00, 40.00),
-(0, 9, 5, 1, 50.00, 500.00, 20000.00, 50.00),
-(0, 9, 1, 1, 100.00, 0.00, 10000.00, 0.00),
-(0, 9, 2, 1, 80.00, 5000.00, 1000000.00, 20.00),
-(0, 9, 3, 1, 70.00, 2000.00, 50000.00, 30.00),
-(0, 9, 4, 1, 60.00, 1000.00, 30000.00, 40.00),
-(0, 9, 5, 1, 50.00, 500.00, 20000.00, 50.00),
-(0, 9, 1, 1, 100.00, 0.00, 10000.00, 0.00),
-(0, 9, 2, 1, 80.00, 5000.00, 1000000.00, 20.00),
-(0, 9, 3, 1, 70.00, 2000.00, 50000.00, 30.00),
-(0, 9, 4, 1, 60.00, 1000.00, 30000.00, 40.00),
-(0, 9, 5, 1, 50.00, 500.00, 20000.00, 50.00),
-(0, 9, 1, 1, 100.00, 0.00, 10000.00, 0.00),
-(0, 9, 2, 1, 80.00, 5000.00, 1000000.00, 20.00),
-(0, 9, 3, 1, 70.00, 2000.00, 50000.00, 30.00),
-(0, 9, 4, 1, 60.00, 1000.00, 30000.00, 40.00),
-(0, 9, 5, 1, 50.00, 500.00, 20000.00, 50.00),
-(0, 9, 1, 1, 100.00, 0.00, 10000.00, 0.00),
-(0, 9, 2, 1, 80.00, 5000.00, 1000000.00, 20.00),
-(0, 9, 3, 1, 70.00, 2000.00, 50000.00, 30.00),
-(0, 9, 4, 1, 60.00, 1000.00, 30000.00, 40.00),
-(0, 9, 5, 1, 50.00, 500.00, 20000.00, 50.00),
-(0, 7, 1, 1, 100.00, 0.00, 10000.00, 0.00),
-(0, 7, 2, 1, 80.00, 5000.00, 1000000.00, 20.00),
-(0, 7, 3, 1, 70.00, 2000.00, 50000.00, 30.00),
-(0, 7, 4, 1, 60.00, 1000.00, 30000.00, 40.00),
-(0, 7, 5, 1, 50.00, 500.00, 20000.00, 50.00),
-(0, 7, 1, 1, 100.00, 0.00, 10000.00, 0.00),
-(0, 7, 2, 1, 80.00, 5000.00, 1000000.00, 20.00),
-(0, 7, 3, 1, 70.00, 2000.00, 50000.00, 30.00),
-(0, 7, 4, 1, 60.00, 1000.00, 30000.00, 40.00),
-(0, 7, 5, 1, 50.00, 500.00, 20000.00, 50.00),
-(0, 9, 1, 1, 100.00, 0.00, 10000.00, 0.00),
-(0, 9, 2, 1, 80.00, 5000.00, 1000000.00, 20.00),
-(0, 9, 3, 1, 70.00, 2000.00, 50000.00, 30.00),
-(0, 9, 4, 1, 60.00, 1000.00, 30000.00, 40.00),
-(0, 9, 5, 1, 50.00, 500.00, 20000.00, 50.00),
-(0, 9, 1, 1, 100.00, 0.00, 10000.00, 0.00),
-(0, 9, 2, 1, 80.00, 5000.00, 1000000.00, 20.00),
-(0, 9, 3, 1, 70.00, 2000.00, 50000.00, 30.00),
-(0, 9, 4, 1, 60.00, 1000.00, 30000.00, 40.00),
-(0, 9, 5, 1, 50.00, 500.00, 20000.00, 50.00),
-(0, 9, 1, 1, 100.00, 0.00, 10000.00, 0.00),
-(0, 9, 2, 1, 80.00, 5000.00, 1000000.00, 20.00),
-(0, 9, 3, 1, 70.00, 2000.00, 50000.00, 30.00),
-(0, 9, 4, 1, 60.00, 1000.00, 30000.00, 40.00),
-(0, 9, 5, 1, 50.00, 500.00, 20000.00, 50.00),
-(0, 9, 1, 1, 100.00, 0.00, 10000.00, 0.00),
-(0, 9, 2, 1, 80.00, 5000.00, 1000000.00, 20.00),
-(0, 9, 3, 1, 70.00, 2000.00, 50000.00, 30.00),
-(0, 9, 4, 1, 60.00, 1000.00, 30000.00, 40.00),
-(0, 9, 5, 1, 50.00, 500.00, 20000.00, 50.00),
-(0, 7, 1, 1, 100.00, 0.00, 10000.00, 0.00),
-(0, 7, 2, 1, 80.00, 5000.00, 1000000.00, 20.00),
-(0, 7, 3, 1, 70.00, 2000.00, 50000.00, 30.00),
-(0, 7, 4, 1, 60.00, 1000.00, 30000.00, 40.00),
-(0, 7, 5, 1, 50.00, 500.00, 20000.00, 50.00);
 
 -- --------------------------------------------------------
 
@@ -473,7 +386,8 @@ INSERT INTO `service` (`id`, `name`) VALUES
 (4, 'Dental'),
 (3, 'Maternity'),
 (2, 'Operations'),
-(5, 'Optical');
+(5, 'Optical'),
+(0, 'Surgery');
 
 -- --------------------------------------------------------
 
@@ -519,6 +433,16 @@ INSERT INTO `users` (`user_id`, `role_id`, `hospital_id`, `insurance_id`, `full_
 --
 ALTER TABLE `category`
   ADD PRIMARY KEY (`id`);
+
+--
+-- Indexes for table `claims`
+--
+ALTER TABLE `claims`
+  ADD PRIMARY KEY (`claim_id`),
+  ADD KEY `fk_claim_record` (`record_id`),
+  ADD KEY `fk_claim_patient` (`patient_id`),
+  ADD KEY `fk_claim_insurance` (`insurance_id`),
+  ADD KEY `fk_claim_service` (`service_id`);
 
 --
 -- Indexes for table `customer_type`
@@ -571,7 +495,8 @@ ALTER TABLE `patients`
   ADD PRIMARY KEY (`patient_id`),
   ADD UNIQUE KEY `national_id` (`national_id`),
   ADD KEY `idx_patients_phone` (`phone`),
-  ADD KEY `idx_patients_insurance` (`insurance_id`);
+  ADD KEY `idx_patients_insurance` (`insurance_id`),
+  ADD KEY `fk_patients_category` (`category_id`);
 
 --
 -- Indexes for table `patient_policy`
@@ -615,6 +540,12 @@ ALTER TABLE `category`
   MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
 
 --
+-- AUTO_INCREMENT for table `claims`
+--
+ALTER TABLE `claims`
+  MODIFY `claim_id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
 -- AUTO_INCREMENT for table `customer_type`
 --
 ALTER TABLE `customer_type`
@@ -636,7 +567,7 @@ ALTER TABLE `insurance_hospitals`
 -- AUTO_INCREMENT for table `insurance_plan`
 --
 ALTER TABLE `insurance_plan`
-  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=31;
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=32;
 
 --
 -- AUTO_INCREMENT for table `medical_insurances`
@@ -648,13 +579,13 @@ ALTER TABLE `medical_insurances`
 -- AUTO_INCREMENT for table `medical_records`
 --
 ALTER TABLE `medical_records`
-  MODIFY `record_id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
+  MODIFY `record_id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
 
 --
 -- AUTO_INCREMENT for table `patients`
 --
 ALTER TABLE `patients`
-  MODIFY `patient_id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=18;
+  MODIFY `patient_id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=20;
 
 --
 -- AUTO_INCREMENT for table `users`
@@ -667,9 +598,19 @@ ALTER TABLE `users`
 --
 
 --
+-- Constraints for table `claims`
+--
+ALTER TABLE `claims`
+  ADD CONSTRAINT `fk_claim_insurance` FOREIGN KEY (`insurance_id`) REFERENCES `medical_insurances` (`insurance_id`),
+  ADD CONSTRAINT `fk_claim_patient` FOREIGN KEY (`patient_id`) REFERENCES `patients` (`patient_id`),
+  ADD CONSTRAINT `fk_claim_record` FOREIGN KEY (`record_id`) REFERENCES `medical_records` (`record_id`),
+  ADD CONSTRAINT `fk_claim_service` FOREIGN KEY (`service_id`) REFERENCES `service` (`id`);
+
+--
 -- Constraints for table `patients`
 --
 ALTER TABLE `patients`
+  ADD CONSTRAINT `fk_patients_category` FOREIGN KEY (`category_id`) REFERENCES `category` (`id`) ON DELETE SET NULL,
   ADD CONSTRAINT `fk_patients_insurance` FOREIGN KEY (`insurance_id`) REFERENCES `medical_insurances` (`insurance_id`) ON DELETE SET NULL;
 
 --

@@ -1,7 +1,7 @@
 <?php
 /**
- * PatientViewMedicalRecord.php - OOP Version
- * Patient can view ONLY his own record
+ * PatientViewMedicalRecord.php
+ * ✅ Full Data Visibility for Patient
  */
 
 session_start();
@@ -9,14 +9,11 @@ session_start();
 require_once __DIR__ . '/Database.php';
 require_once __DIR__ . '/Auth.php';
 require_once __DIR__ . '/MedicalRecord.php';
-require_once __DIR__ . '/Validator.php';
 
-// Init
 $db   = new Database();
 $conn = $db->getConnection();
 $auth = new Auth($conn);
 
-// Auth check
 $auth->checkPatientAuth();
 
 $patient_id = (int)$auth->getSessionData("patient_id");
@@ -30,38 +27,13 @@ function e($v): string {
   return htmlspecialchars((string)$v, ENT_QUOTES, "UTF-8");
 }
 
-// Load record via OOP
-$mr = new MedicalRecord($conn);
+$stmt = $conn->prepare("SELECT * FROM medical_records WHERE record_id = ? AND patient_id = ? LIMIT 1");
+$stmt->bind_param("ii", $record_id, $patient_id);
+$stmt->execute();
+$rec = $stmt->get_result()->fetch_assoc();
+$stmt->close();
 
-/**
- * ✅ We expect your MedicalRecord class to support one of these:
- * - loadByIdForPatient($record_id, $patient_id)
- * - getRecordByIdForPatient($record_id, $patient_id)
- *
- * If none exist, we fallback to a safe prepared statement.
- */
-$rec = null;
-
-if (method_exists($mr, "loadByIdForPatient")) {
-  $rec = $mr->loadByIdForPatient($record_id, $patient_id); // may return array or bool
-  if ($rec === true && method_exists($mr, "toArray")) $rec = $mr->toArray();
-} elseif (method_exists($mr, "getRecordByIdForPatient")) {
-  $rec = $mr->getRecordByIdForPatient($record_id, $patient_id);
-} else {
-  // Safe fallback query (OOP file but using $conn)
-  $stmt = $conn->prepare("
-    SELECT *
-    FROM medical_records
-    WHERE record_id = ? AND patient_id = ?
-    LIMIT 1
-  ");
-  $stmt->bind_param("ii", $record_id, $patient_id);
-  $stmt->execute();
-  $rec = $stmt->get_result()->fetch_assoc();
-  $stmt->close();
-}
-
-if (!$rec || !is_array($rec)) {
+if (!$rec) {
   die("Record not found or access denied.");
 }
 ?>
@@ -69,136 +41,99 @@ if (!$rec || !is_array($rec)) {
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>Medical Record #<?= (int)$record_id ?></title>
-
-  <link href="css/all.min.css" rel="stylesheet">
+  <title>My Medical Record Details</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
   <link href="https://fonts.googleapis.com/css?family=Nunito:200,300,400,600,700,800,900" rel="stylesheet">
   <link href="css/sb-admin-2.min.css" rel="stylesheet">
-
   <style>
     body { background:#f8f9fc; }
     .label { font-weight:600; color:#4e73df; }
+    .section-header { border-bottom: 2px solid #4e73df; margin-bottom: 15px; padding-bottom: 5px; color: #4e73df; font-weight: bold; }
   </style>
 </head>
 <body>
 
 <div class="container py-4">
-
-  <a href="PatientDashboard.php#medical" class="btn btn-outline-secondary mb-3">
-    <i class="fas fa-arrow-left mr-1"></i> Back to Dashboard
+  <a href="PatientDashboard.php#medical" class="btn btn-outline-secondary mb-3 shadow-sm">
+    <i class="fas fa-arrow-left mr-1"></i> Back to My Records
   </a>
 
   <div class="card shadow mb-4">
-    <div class="card-header bg-primary text-white">
-      <h5 class="mb-0">
-        <i class="fas fa-file-medical-alt mr-2"></i>
-        Medical Record Details — #<?= (int)$record_id ?>
-      </h5>
-      <small>Created at: <?= e($rec["created_at"] ?? "-") ?></small>
+    <div class="card-header bg-primary text-white py-3 shadow">
+      <h5 class="mb-0 font-weight-bold"><i class="fas fa-file-invoice-medical mr-2"></i> Report #<?= (int)$record_id ?></h5>
     </div>
 
     <div class="card-body">
-
-      <!-- BASIC -->
-      <h6 class="text-primary font-weight-bold">Basic</h6>
-      <div class="row">
-        <div class="col-md-4 mb-2"><span class="label">Age:</span> <?= e($rec["age"] ?? "-") ?></div>
-        <div class="col-md-4 mb-2"><span class="label">Check-in:</span> <?= e($rec["checkin_date"] ?? "-") ?></div>
-        <div class="col-md-4 mb-2"><span class="label">Check-out:</span> <?= e($rec["checkout_date"] ?? "-") ?></div>
-        <div class="col-md-4 mb-2"><span class="label">Length of Stay:</span> <?= e($rec["length_of_stay"] ?? "-") ?></div>
-        <div class="col-md-4 mb-2"><span class="label">Month:</span> <?= e($rec["month"] ?? "-") ?></div>
-        <div class="col-md-4 mb-2"><span class="label">Admission Count:</span> <?= e($rec["admission_count"] ?? "-") ?></div>
+      
+      <div class="section-header">Admission Details</div>
+      <div class="row mb-4">
+        <div class="col-md-3"><span class="label">Date:</span> <?= e($rec["checkin_date"]) ?></div>
+        <div class="col-md-3"><span class="label">Duration:</span> <?= e($rec["length_of_stay"]) ?> Days</div>
+        <div class="col-md-3"><span class="label">Age:</span> <?= e($rec["age"]) ?></div>
+        <div class="col-md-3"><span class="label">Visit ID:</span> <?= e($rec["admission_count"]) ?></div>
       </div>
 
-      <hr>
-
-      <!-- LABS ROUND 1 -->
-      <h6 class="text-primary font-weight-bold">Lab Results – Round 1</h6>
-      <div class="row">
-        <div class="col-md-3 mb-2"><span class="label">CBC-HB1:</span> <?= e($rec["cbc_hb1"] ?? "-") ?></div>
-        <div class="col-md-3 mb-2"><span class="label">CBC-TLC1:</span> <?= e($rec["cbc_tlc1"] ?? "-") ?></div>
-        <div class="col-md-3 mb-2"><span class="label">CBC-PLAT1:</span> <?= e($rec["cbc_plat1"] ?? "-") ?></div>
-        <div class="col-md-3 mb-2"><span class="label">Blood Urea 1:</span> <?= e($rec["blood_uria1"] ?? "-") ?></div>
-        <div class="col-md-3 mb-2"><span class="label">Creatinine 1:</span> <?= e($rec["blood_creatinine1"] ?? "-") ?></div>
+      <div class="section-header">Laboratory Trends (Round 1 → Round 2)</div>
+      <div class="table-responsive mb-4">
+        <table class="table table-bordered table-sm text-center">
+            <thead class="bg-light">
+                <tr><th>Metric</th><th>First Reading</th><th>Second Reading</th><th>Change</th></tr>
+            </thead>
+            <tbody>
+                <tr><td>Hemoglobin (HB)</td><td><?= e($rec["cbc_hb1"]) ?></td><td><?= e($rec["cbc_hb2"]) ?></td><td class="text-info"><?= e($rec["delta_hb"]) ?></td></tr>
+                <tr><td>Blood Urea</td><td><?= e($rec["blood_uria1"]) ?></td><td><?= e($rec["blood_uria2"]) ?></td><td class="text-info"><?= e($rec["delta_uria"]) ?></td></tr>
+                <tr><td>Creatinine</td><td><?= e($rec["blood_creatinine1"]) ?></td><td><?= e($rec["blood_creatinine2"]) ?></td><td class="text-info"><?= e($rec["delta_creatinine"]) ?></td></tr>
+            </tbody>
+        </table>
       </div>
 
-      <hr>
-
-      <!-- LABS ROUND 2 -->
-      <h6 class="text-primary font-weight-bold">Lab Results – Round 2</h6>
-      <div class="row">
-        <div class="col-md-3 mb-2"><span class="label">CBC-HB2:</span> <?= e($rec["cbc_hb2"] ?? "-") ?></div>
-        <div class="col-md-3 mb-2"><span class="label">CBC-TLC2:</span> <?= e($rec["cbc_tlc2"] ?? "-") ?></div>
-        <div class="col-md-3 mb-2"><span class="label">CBC-PLAT2:</span> <?= e($rec["cbc_plat2"] ?? "-") ?></div>
-        <div class="col-md-3 mb-2"><span class="label">Blood Urea 2:</span> <?= e($rec["blood_uria2"] ?? "-") ?></div>
-        <div class="col-md-3 mb-2"><span class="label">Creatinine 2:</span> <?= e($rec["blood_creatinine2"] ?? "-") ?></div>
+      <div class="section-header">Lifestyle & Wellness Profile</div>
+      <div class="row mb-4">
+        <div class="col-md-4 mb-2"><span class="label">Activity Level:</span> <?= e($rec["physical_activity_level"]) ?></div>
+        <div class="col-md-4 mb-2"><span class="label">Sleep:</span> <?= e($rec["sleep_hours"]) ?> Hours</div>
+        <div class="col-md-4 mb-2"><span class="label">Diet Quality:</span> <?= e($rec["diet_quality"]) ?></div>
+        <div class="col-md-4 mb-2"><span class="label">Smoking Status:</span> <?= e($rec["smoking_status"]) ?></div>
+        <div class="col-md-4 mb-2"><span class="label">Stress Level:</span> <?= e($rec["stress_level"]) ?>/10</div>
+        <div class="col-md-4 mb-2"><span class="label">BMI:</span> <?= e($rec["bmi"]) ?></div>
       </div>
 
-      <hr>
+      <div class="section-header">Reported Symptoms Check</div>
+      <div class="row mb-4">
+        <div class="col-md-12">
+            <?php 
+            $syms = [];
+            if($rec["fever"] > 0) $syms[] = "Fever";
+            if($rec["cough"] > 0) $syms[] = "Cough";
+            if($rec["fatigue"] > 0) $syms[] = "Fatigue";
+            if($rec["headache"] > 0) $syms[] = "Headache";
+            if($rec["chest_pain"] > 0) $syms[] = "Chest Pain";
+            if($rec["shortness_of_breath"] > 0) $syms[] = "Shortness of Breath";
 
-      <!-- VITALS -->
-      <h6 class="text-primary font-weight-bold">Vitals</h6>
-      <div class="row">
-        <div class="col-md-3 mb-2"><span class="label">BMI:</span> <?= e($rec["bmi"] ?? "-") ?></div>
-        <div class="col-md-3 mb-2"><span class="label">Glucose:</span> <?= e($rec["glucose"] ?? "-") ?></div>
-        <div class="col-md-3 mb-2"><span class="label">Systolic BP:</span> <?= e($rec["systolic_bp"] ?? "-") ?></div>
-      </div>
-
-      <hr>
-
-      <!-- AVERAGES -->
-      <h6 class="text-primary font-weight-bold">Averages</h6>
-      <div class="row">
-        <div class="col-md-3 mb-2"><span class="label">Avg Creatinine:</span> <?= e($rec["avg_creatinine"] ?? "-") ?></div>
-        <div class="col-md-3 mb-2"><span class="label">Avg Urea:</span> <?= e($rec["avg_urea"] ?? "-") ?></div>
-        <div class="col-md-3 mb-2"><span class="label">Avg HB:</span> <?= e($rec["avg_hb"] ?? "-") ?></div>
-        <div class="col-md-3 mb-2"><span class="label">Avg TLC:</span> <?= e($rec["avg_tlc"] ?? "-") ?></div>
-        <div class="col-md-3 mb-2"><span class="label">Avg Platelets:</span> <?= e($rec["avg_platelets"] ?? "-") ?></div>
-      </div>
-
-      <hr>
-
-      <!-- LIFESTYLE -->
-      <h6 class="text-primary font-weight-bold">Lifestyle</h6>
-      <div class="row">
-        <div class="col-md-4 mb-2"><span class="label">Smoking Status:</span> <?= e($rec["smoking_status"] ?? "-") ?></div>
-        <div class="col-md-4 mb-2"><span class="label">Physical Activity:</span> <?= e($rec["physical_activity_level"] ?? "-") ?></div>
-      </div>
-
-      <hr>
-
-      <!-- FLAGS + DIAGNOSIS -->
-      <h6 class="text-primary font-weight-bold">Diagnosis & Risks</h6>
-      <div class="row">
-        <div class="col-md-12 mb-2"><span class="label">Diagnosis:</span> <?= e($rec["diagnosis"] ?? "-") ?></div>
-        <div class="col-md-12 mb-2">
-          <span class="label">Risks:</span>
-          <?php if (!empty($rec["has_diabetes"])): ?><span class="badge badge-warning mr-1">Diabetes</span><?php endif; ?>
-          <?php if (!empty($rec["has_hypertension"])): ?><span class="badge badge-danger mr-1">Hypertension</span><?php endif; ?>
-          <?php if (!empty($rec["has_kidney_disease"])): ?><span class="badge badge-info mr-1">Kidney Disease</span><?php endif; ?>
-          <?php if (!empty($rec["has_heart_disease"])): ?><span class="badge badge-primary mr-1">Heart Disease</span><?php endif; ?>
-
-          <?php
-            $noFlags = empty($rec["has_diabetes"]) && empty($rec["has_hypertension"]) &&
-                       empty($rec["has_kidney_disease"]) && empty($rec["has_heart_disease"]);
-            if ($noFlags) echo '<span class="text-muted">No risk flags</span>';
-          ?>
+            if(empty($syms)) {
+                echo '<span class="text-muted">No significant symptoms recorded.</span>';
+            } else {
+                foreach($syms as $s) {
+                    echo '<span class="badge badge-pill badge-danger p-2 mr-2 mb-2">'.$s.'</span>';
+                }
+            }
+            ?>
         </div>
       </div>
 
+      <div class="p-4 bg-light border-left border-primary rounded">
+        <h6 class="label text-uppercase mb-2">Final Diagnosis</h6>
+        <h4 class="font-weight-bold text-dark"><?= e($rec["diagnosis"]) ?></h4>
+        <p class="mb-0 text-muted">Condition Category: <?= e($rec["disease_category"]) ?></p>
+      </div>
+
+    </div>
+    <div class="card-footer text-center text-muted small">
+        Generated for patient ID <?= (int)$patient_id ?> on <?= date('Y-m-d') ?>
     </div>
   </div>
-
 </div>
 
 <script src="Js/jquery.min.js"></script>
 <script src="Js/bootstrap.bundle.min.js"></script>
-<script src="Js/jquery.easing.min.js"></script>
-<script src="Js/sb-admin-2.min.js"></script>
-
 </body>
 </html>
-<?php
-if ($conn instanceof mysqli) { $conn->close(); }
-?>
