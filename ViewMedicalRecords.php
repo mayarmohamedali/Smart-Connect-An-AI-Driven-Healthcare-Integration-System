@@ -321,7 +321,7 @@ if (isset($_GET["record_id"])) {
       <div class="row">
         <div class="col-md-2 mb-2"><span class="label">BMI:</span> <?= e($selected_record["bmi"]) ?></div>
         <div class="col-md-2 mb-2"><span class="label">Glucose:</span> <?= e($selected_record["glucose"]) ?></div>
-        <div class="col-md-2 mb-2"><span class="label">Systolic BP:</span> <?= e($selected_record["systolic_bp"]) ?></div>
+        <div class="col-md-2 mb-2"><span class="label">Blood Pressure:</span> <?= e($selected_record["systolic_bp"]) ?></div>
         <div class="col-md-3 mb-2"><span class="label">Cholesterol:</span> <?= e($selected_record["cholesterol_level"]) ?></div>
         <div class="col-md-3 mb-2"><span class="label">Smoking:</span> <?= e($selected_record["smoking_status"]) ?></div>
         <div class="col-md-3 mb-2"><span class="label">Activity:</span> <?= e($selected_record["physical_activity_level"]) ?></div>

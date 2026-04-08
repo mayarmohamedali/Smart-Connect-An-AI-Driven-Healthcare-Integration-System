@@ -12,10 +12,6 @@ class MedicalRecord {
     private $glucose;
     private $cholesterol_level;
     private $systolic_bp;
-    private $has_diabetes;
-    private $has_hypertension;
-    private $has_kidney_disease;
-    private $has_heart_disease;
 
     // Lab values
     private $cbc_hb1;
@@ -29,32 +25,41 @@ class MedicalRecord {
     private $blood_uria2;
     private $blood_creatinine2;
 
-    // Aggregates
-    private $month;
-    private $year;
-    private $day_of_week;
-    private $admission_count;
-    private $avg_creatinine;
-    private $avg_urea;
+    // Aggregates (auto-calculated — never set manually)
     private $avg_hb;
     private $avg_tlc;
     private $avg_platelets;
-    private $avg_length_stay;
-    private $length_of_stay;
+    private $avg_urea;
+    private $avg_creatinine;
 
-    // Deltas
+    // Deltas (auto-calculated — never set manually)
     private $delta_hb;
     private $delta_tlc;
     private $delta_plat;
     private $delta_uria;
     private $delta_creatinine;
 
+    // Admission
+    private $month;
+    private $year;
+    private $day_of_week;
+    private $admission_count;
+    private $length_of_stay;
+    private $avg_length_stay;
+
     // Lifestyle
+    // smoking_status: TINYINT(1) — 1 = Smoker, 0 = Non-Smoker, null = unknown
     private $smoking_status;
     private $physical_activity_level;
     private $diet_quality;
     private $alcohol_consumption;
     private $sleep_hours;
+
+    // Medical history flags
+    private $has_diabetes;
+    private $has_hypertension;
+    private $has_kidney_disease;
+    private $has_heart_disease;
 
     // Risk / computed
     private $stress_level;
@@ -77,70 +82,95 @@ class MedicalRecord {
     }
 
     // ── Getters ────────────────────────────────────────────────────────────────
-    public function getRecordId()      { return $this->record_id; }
-    public function getPatientId()     { return $this->patient_id; }
-    public function getDiagnosis()     { return $this->diagnosis; }
-    public function getCheckinDate()   { return $this->checkin_date; }
-    public function getCheckoutDate()  { return $this->checkout_date; }
+    public function getRecordId()     { return $this->record_id; }
+    public function getPatientId()    { return $this->patient_id; }
+    public function getDiagnosis()    { return $this->diagnosis; }
+    public function getCheckinDate()  { return $this->checkin_date; }
+    public function getCheckoutDate() { return $this->checkout_date; }
 
     // ── Setters ────────────────────────────────────────────────────────────────
-    public function setPatientId($id)        { $this->patient_id = $id; }
-    public function setAge($age)             { $this->age = $age; }
-    public function setCheckinDate($date)    { $this->checkin_date = $date; }
-    public function setCheckoutDate($date)   { $this->checkout_date = $date; }
-    public function setDiagnosis($v)         { $this->diagnosis = $v; }
-    public function setDiseaseCategory($v)   { $this->disease_category = $v; }
-    public function setBMI($v)               { $this->bmi = $v; }
-    public function setGlucose($v)           { $this->glucose = $v; }
-    public function setCholesterolLevel($v)  { $this->cholesterol_level = $v; }
-    public function setSystolicBP($v)        { $this->systolic_bp = $v; }
+    public function setPatientId($id)       { $this->patient_id = $id; }
+    public function setAge($age)            { $this->age = $age; }
+    public function setCheckinDate($date)   { $this->checkin_date = $date; }
+    public function setCheckoutDate($date)  { $this->checkout_date = $date; }
+    public function setDiagnosis($v)        { $this->diagnosis = $v; }
+    public function setDiseaseCategory($v)  { $this->disease_category = $v; }
+    public function setBMI($v)              { $this->bmi = $v; }
+    public function setGlucose($v)          { $this->glucose = $v; }
+    public function setCholesterolLevel($v) { $this->cholesterol_level = $v; }
+    public function setSystolicBP($v)       { $this->systolic_bp = $v; }
 
+    /**
+     * Set lab values and AUTO-CALCULATE averages and deltas.
+     * No manual input needed for avg/delta — they are always derived here.
+     */
     public function setLabValues($hb1, $tlc1, $plat1, $uria1, $creat1,
                                   $hb2, $tlc2, $plat2, $uria2, $creat2) {
-        $this->cbc_hb1             = $hb1;
-        $this->cbc_tlc1            = $tlc1;
-        $this->cbc_plat1           = $plat1;
-        $this->blood_uria1         = $uria1;
-        $this->blood_creatinine1   = $creat1;
-        $this->cbc_hb2             = $hb2;
-        $this->cbc_tlc2            = $tlc2;
-        $this->cbc_plat2           = $plat2;
-        $this->blood_uria2         = $uria2;
-        $this->blood_creatinine2   = $creat2;
+        $this->cbc_hb1           = $hb1;
+        $this->cbc_tlc1          = $tlc1;
+        $this->cbc_plat1         = $plat1;
+        $this->blood_uria1       = $uria1;
+        $this->blood_creatinine1 = $creat1;
+        $this->cbc_hb2           = $hb2;
+        $this->cbc_tlc2          = $tlc2;
+        $this->cbc_plat2         = $plat2;
+        $this->blood_uria2       = $uria2;
+        $this->blood_creatinine2 = $creat2;
+
+        // ── Auto-calculate averages ────────────────────────────────────────────
+        $this->avg_hb         = $this->calcAvg($hb1,    $hb2);
+        $this->avg_tlc        = $this->calcAvg($tlc1,   $tlc2);
+        $this->avg_platelets  = $this->calcAvg($plat1,  $plat2);
+        $this->avg_urea       = $this->calcAvg($uria1,  $uria2);
+        $this->avg_creatinine = $this->calcAvg($creat1, $creat2);
+
+        // ── Auto-calculate deltas (Round 2 − Round 1) ─────────────────────────
+        $this->delta_hb         = $this->calcDelta($hb1,    $hb2);
+        $this->delta_tlc        = $this->calcDelta($tlc1,   $tlc2);
+        $this->delta_plat       = $this->calcDelta($plat1,  $plat2);
+        $this->delta_uria       = $this->calcDelta($uria1,  $uria2);
+        $this->delta_creatinine = $this->calcDelta($creat1, $creat2);
+    }
+
+    /** Returns (a + b) / 2 rounded to 3 decimal places, or null if either is missing. */
+    private function calcAvg($a, $b) {
+        if ($a === null || $a === "" || $b === null || $b === "") return null;
+        return round(((float)$a + (float)$b) / 2, 3);
+    }
+
+    /** Returns b − a rounded to 3 decimal places, or null if either is missing. */
+    private function calcDelta($a, $b) {
+        if ($a === null || $a === "" || $b === null || $b === "") return null;
+        return round((float)$b - (float)$a, 3);
     }
 
     public function setAggregates($month, $year, $day_of_week, $admission_count,
-                                   $avg_creat, $avg_urea, $avg_hb, $avg_tlc, $avg_plat,
                                    $avg_length_stay = null) {
-        $this->month            = $month;
-        $this->year             = $year;
-        $this->day_of_week      = $day_of_week;
-        $this->admission_count  = $admission_count;
-        $this->avg_creatinine   = $avg_creat;
-        $this->avg_urea         = $avg_urea;
-        $this->avg_hb           = $avg_hb;
-        $this->avg_tlc          = $avg_tlc;
-        $this->avg_platelets    = $avg_plat;
-        $this->avg_length_stay  = $avg_length_stay;
+        $this->month           = $month;
+        $this->year            = $year;
+        $this->day_of_week     = $day_of_week;
+        $this->admission_count = $admission_count;
+        $this->avg_length_stay = $avg_length_stay;
     }
 
-    public function setDeltas($delta_hb, $delta_tlc, $delta_plat, $delta_uria, $delta_creatinine) {
-        $this->delta_hb          = $delta_hb;
-        $this->delta_tlc         = $delta_tlc;
-        $this->delta_plat        = $delta_plat;
-        $this->delta_uria        = $delta_uria;
-        $this->delta_creatinine  = $delta_creatinine;
-    }
-
+    /**
+     * Set lifestyle fields.
+     *
+     * @param mixed $smoking  Pass an int (1 or 0) or null — NOT a string.
+     *                        Use: ($raw === "") ? null : (int)$raw
+     *                        Do NOT use Validator::nullIfEmpty() for this field
+     *                        because nullIfEmpty("0") returns null (falsy trap).
+     */
     public function setLifestyle($length_of_stay, $smoking, $activity,
                                   $diet_quality = null, $alcohol_consumption = null,
                                   $sleep_hours = null) {
-        $this->length_of_stay         = $length_of_stay;
-        $this->smoking_status         = $smoking;
+        $this->length_of_stay          = $length_of_stay;
+        // Store as boolean int: 1 = Smoker, 0 = Non-Smoker, null = not specified
+        $this->smoking_status          = ($smoking === null || $smoking === "") ? null : (int)$smoking;
         $this->physical_activity_level = $activity;
-        $this->diet_quality           = $diet_quality;
-        $this->alcohol_consumption    = $alcohol_consumption;
-        $this->sleep_hours            = $sleep_hours;
+        $this->diet_quality            = $diet_quality;
+        $this->alcohol_consumption     = $alcohol_consumption;
+        $this->sleep_hours             = $sleep_hours;
     }
 
     public function setRiskFlags($diabetes, $hypertension, $kidney, $heart) {
@@ -179,10 +209,10 @@ class MedicalRecord {
                 patient_id, age, checkin_date, checkout_date,
                 cbc_hb1, cbc_tlc1, cbc_plat1, blood_uria1, blood_creatinine1,
                 cbc_hb2, cbc_tlc2, cbc_plat2, blood_uria2, blood_creatinine2,
+                avg_hb, avg_tlc, avg_platelets, avg_urea, avg_creatinine,
+                delta_hb, delta_tlc, delta_plat, delta_uria, delta_creatinine,
                 bmi, glucose, cholesterol_level, systolic_bp,
                 month, year, day_of_week, admission_count,
-                avg_creatinine, avg_urea, avg_hb, avg_tlc, avg_platelets,
-                delta_hb, delta_tlc, delta_plat, delta_uria, delta_creatinine,
                 length_of_stay, avg_length_stay,
                 smoking_status, physical_activity_level, diet_quality,
                 alcohol_consumption, sleep_hours,
@@ -195,10 +225,10 @@ class MedicalRecord {
                 ?, ?, ?, ?,
                 ?, ?, ?, ?, ?,
                 ?, ?, ?, ?, ?,
-                ?, ?, ?, ?,
-                ?, ?, ?, ?,
                 ?, ?, ?, ?, ?,
                 ?, ?, ?, ?, ?,
+                ?, ?, ?, ?,
+                ?, ?, ?, ?,
                 ?, ?,
                 ?, ?, ?,
                 ?, ?,
@@ -211,30 +241,40 @@ class MedicalRecord {
         ";
 
         $stmt = $this->conn->prepare($sql);
-        if (!$stmt) {
-            return false;
-        }
+        if (!$stmt) return false;
 
-$params = [
-    $this->patient_id, $this->age, $this->checkin_date, $this->checkout_date,
-    $this->cbc_hb1, $this->cbc_tlc1, $this->cbc_plat1, $this->blood_uria1, $this->blood_creatinine1,
-    $this->cbc_hb2, $this->cbc_tlc2, $this->cbc_plat2, $this->blood_uria2, $this->blood_creatinine2,
-    $this->bmi, $this->glucose, $this->cholesterol_level, $this->systolic_bp,
-    $this->month, $this->year, $this->day_of_week, $this->admission_count,
-    $this->avg_creatinine, $this->avg_urea, $this->avg_hb, $this->avg_tlc, $this->avg_platelets,
-    $this->delta_hb, $this->delta_tlc, $this->delta_plat, $this->delta_uria, $this->delta_creatinine,
-    $this->length_of_stay, $this->avg_length_stay,
-    $this->smoking_status, $this->physical_activity_level, $this->diet_quality,
-    $this->alcohol_consumption, $this->sleep_hours,
-    $this->stress_level, $this->family_history, $this->medications_count,
-    $this->risk_score, $this->symptom_burden, $this->seasonal_weight,
-    $this->has_diabetes, $this->has_hypertension, $this->has_kidney_disease, $this->has_heart_disease,
-    $this->fever, $this->cough, $this->fatigue, $this->chest_pain, $this->shortness_of_breath, $this->headache,
-    $this->diagnosis, $this->disease_category
-];
+        $params = [
+            $this->patient_id, $this->age, $this->checkin_date, $this->checkout_date,
+            // lab round 1
+            $this->cbc_hb1, $this->cbc_tlc1, $this->cbc_plat1, $this->blood_uria1, $this->blood_creatinine1,
+            // lab round 2
+            $this->cbc_hb2, $this->cbc_tlc2, $this->cbc_plat2, $this->blood_uria2, $this->blood_creatinine2,
+            // auto-calculated averages
+            $this->avg_hb, $this->avg_tlc, $this->avg_platelets, $this->avg_urea, $this->avg_creatinine,
+            // auto-calculated deltas
+            $this->delta_hb, $this->delta_tlc, $this->delta_plat, $this->delta_uria, $this->delta_creatinine,
+            // vitals
+            $this->bmi, $this->glucose, $this->cholesterol_level, $this->systolic_bp,
+            // admission
+            $this->month, $this->year, $this->day_of_week, $this->admission_count,
+            $this->length_of_stay, $this->avg_length_stay,
+            // lifestyle — smoking_status is already int|null from setLifestyle()
+            $this->smoking_status, $this->physical_activity_level, $this->diet_quality,
+            $this->alcohol_consumption, $this->sleep_hours,
+            // risk scores
+            $this->stress_level, $this->family_history, $this->medications_count,
+            $this->risk_score, $this->symptom_burden, $this->seasonal_weight,
+            // flags
+            $this->has_diabetes, $this->has_hypertension, $this->has_kidney_disease, $this->has_heart_disease,
+            // symptoms
+            $this->fever, $this->cough, $this->fatigue, $this->chest_pain, $this->shortness_of_breath, $this->headache,
+            // diagnosis
+            $this->diagnosis, $this->disease_category,
+        ];
 
-$types = str_repeat("s", count($params));
-$stmt->bind_param($types, ...$params);
+        $types = str_repeat("s", count($params));
+        $stmt->bind_param($types, ...$params);
+
         if ($stmt->execute()) {
             $this->record_id = $stmt->insert_id;
             $stmt->close();
@@ -246,7 +286,7 @@ $stmt->bind_param($types, ...$params);
 
     // ── LOAD ───────────────────────────────────────────────────────────────────
     public function loadById($record_id) {
-        $stmt = $this->conn->prepare("SELECT * FROM medical_records WHERE record_id=? LIMIT 1");
+        $stmt = $this->conn->prepare("SELECT * FROM medical_records WHERE record_id = ? LIMIT 1");
         $stmt->bind_param("i", $record_id);
         $stmt->execute();
         $row = $stmt->get_result()->fetch_assoc();
@@ -267,51 +307,52 @@ $stmt->bind_param($types, ...$params);
     public function update() {
         $sql = "
             UPDATE medical_records SET
-                age=?, checkin_date=?, checkout_date=?,
-                cbc_hb1=?, cbc_tlc1=?, cbc_plat1=?, blood_uria1=?, blood_creatinine1=?,
-                cbc_hb2=?, cbc_tlc2=?, cbc_plat2=?, blood_uria2=?, blood_creatinine2=?,
-                bmi=?, glucose=?, cholesterol_level=?, systolic_bp=?,
-                month=?, year=?, day_of_week=?, admission_count=?,
-                avg_creatinine=?, avg_urea=?, avg_hb=?, avg_tlc=?, avg_platelets=?,
-                delta_hb=?, delta_tlc=?, delta_plat=?, delta_uria=?, delta_creatinine=?,
-                length_of_stay=?, avg_length_stay=?,
-                smoking_status=?, physical_activity_level=?, diet_quality=?,
-                alcohol_consumption=?, sleep_hours=?,
-                stress_level=?, family_history=?, medications_count=?,
-                risk_score=?, symptom_burden=?, seasonal_weight=?,
-                has_diabetes=?, has_hypertension=?, has_kidney_disease=?, has_heart_disease=?,
-                fever=?, cough=?, fatigue=?, chest_pain=?, shortness_of_breath=?, headache=?,
-                diagnosis=?, disease_category=?
-            WHERE record_id=? AND patient_id=?
+                age = ?, checkin_date = ?, checkout_date = ?,
+                cbc_hb1 = ?, cbc_tlc1 = ?, cbc_plat1 = ?, blood_uria1 = ?, blood_creatinine1 = ?,
+                cbc_hb2 = ?, cbc_tlc2 = ?, cbc_plat2 = ?, blood_uria2 = ?, blood_creatinine2 = ?,
+                avg_hb = ?, avg_tlc = ?, avg_platelets = ?, avg_urea = ?, avg_creatinine = ?,
+                delta_hb = ?, delta_tlc = ?, delta_plat = ?, delta_uria = ?, delta_creatinine = ?,
+                bmi = ?, glucose = ?, cholesterol_level = ?, systolic_bp = ?,
+                month = ?, year = ?, day_of_week = ?, admission_count = ?,
+                length_of_stay = ?, avg_length_stay = ?,
+                smoking_status = ?, physical_activity_level = ?, diet_quality = ?,
+                alcohol_consumption = ?, sleep_hours = ?,
+                stress_level = ?, family_history = ?, medications_count = ?,
+                risk_score = ?, symptom_burden = ?, seasonal_weight = ?,
+                has_diabetes = ?, has_hypertension = ?, has_kidney_disease = ?, has_heart_disease = ?,
+                fever = ?, cough = ?, fatigue = ?, chest_pain = ?, shortness_of_breath = ?, headache = ?,
+                diagnosis = ?, disease_category = ?
+            WHERE record_id = ? AND patient_id = ?
             LIMIT 1
         ";
 
         $stmt = $this->conn->prepare($sql);
-        if (!$stmt) {
-            return false;
-        }
+        if (!$stmt) return false;
 
-$params = [
-    $this->age, $this->checkin_date, $this->checkout_date,
-    $this->cbc_hb1, $this->cbc_tlc1, $this->cbc_plat1, $this->blood_uria1, $this->blood_creatinine1,
-    $this->cbc_hb2, $this->cbc_tlc2, $this->cbc_plat2, $this->blood_uria2, $this->blood_creatinine2,
-    $this->bmi, $this->glucose, $this->cholesterol_level, $this->systolic_bp,
-    $this->month, $this->year, $this->day_of_week, $this->admission_count,
-    $this->avg_creatinine, $this->avg_urea, $this->avg_hb, $this->avg_tlc, $this->avg_platelets,
-    $this->delta_hb, $this->delta_tlc, $this->delta_plat, $this->delta_uria, $this->delta_creatinine,
-    $this->length_of_stay, $this->avg_length_stay,
-    $this->smoking_status, $this->physical_activity_level, $this->diet_quality,
-    $this->alcohol_consumption, $this->sleep_hours,
-    $this->stress_level, $this->family_history, $this->medications_count,
-    $this->risk_score, $this->symptom_burden, $this->seasonal_weight,
-    $this->has_diabetes, $this->has_hypertension, $this->has_kidney_disease, $this->has_heart_disease,
-    $this->fever, $this->cough, $this->fatigue, $this->chest_pain, $this->shortness_of_breath, $this->headache,
-    $this->diagnosis, $this->disease_category,
-    $this->record_id, $this->patient_id
-];
+        $params = [
+            $this->age, $this->checkin_date, $this->checkout_date,
+            $this->cbc_hb1, $this->cbc_tlc1, $this->cbc_plat1, $this->blood_uria1, $this->blood_creatinine1,
+            $this->cbc_hb2, $this->cbc_tlc2, $this->cbc_plat2, $this->blood_uria2, $this->blood_creatinine2,
+            // auto-calculated
+            $this->avg_hb, $this->avg_tlc, $this->avg_platelets, $this->avg_urea, $this->avg_creatinine,
+            $this->delta_hb, $this->delta_tlc, $this->delta_plat, $this->delta_uria, $this->delta_creatinine,
+            $this->bmi, $this->glucose, $this->cholesterol_level, $this->systolic_bp,
+            $this->month, $this->year, $this->day_of_week, $this->admission_count,
+            $this->length_of_stay, $this->avg_length_stay,
+            // smoking_status is already int|null
+            $this->smoking_status, $this->physical_activity_level, $this->diet_quality,
+            $this->alcohol_consumption, $this->sleep_hours,
+            $this->stress_level, $this->family_history, $this->medications_count,
+            $this->risk_score, $this->symptom_burden, $this->seasonal_weight,
+            $this->has_diabetes, $this->has_hypertension, $this->has_kidney_disease, $this->has_heart_disease,
+            $this->fever, $this->cough, $this->fatigue, $this->chest_pain, $this->shortness_of_breath, $this->headache,
+            $this->diagnosis, $this->disease_category,
+            // WHERE
+            $this->record_id, $this->patient_id,
+        ];
 
-$types = str_repeat("s", count($params));
-$stmt->bind_param($types, ...$params);
+        $types = str_repeat("s", count($params));
+        $stmt->bind_param($types, ...$params);
 
         $result = $stmt->execute();
         $stmt->close();
@@ -331,11 +372,8 @@ $stmt->bind_param($types, ...$params);
         $stmt->bind_param("ii", $patient_id, $limit);
         $stmt->execute();
         $result = $stmt->get_result();
-
         $records = [];
-        while ($row = $result->fetch_assoc()) {
-            $records[] = $row;
-        }
+        while ($row = $result->fetch_assoc()) $records[] = $row;
         $stmt->close();
         return $records;
     }

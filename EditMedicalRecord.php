@@ -2,7 +2,7 @@
 /**
  * EditMedicalRecord.php (Hospital Staff)
  * ✅ Standalone — no OOP class dependency for the update logic
- * ✅ All new schema fields included
+ * ✅ smoking_status stored as TINYINT boolean (1 = Smoker, 0 = Non-Smoker)
  */
 
 session_start();
@@ -35,7 +35,6 @@ function chk($val): string {
   return !empty($val) ? "checked" : "";
 }
 function ni($v) {
-  // null if empty string, otherwise return trimmed value
   $v = trim((string)($v ?? ""));
   return $v === "" ? null : $v;
 }
@@ -70,7 +69,6 @@ if (!$record) {
 }
 
 /* ── Dropdown options ───────────────────────────────────────────── */
-$smokingOptions  = ["Non-Smoker", "Smoker", "Former Smoker"];
 $activityOptions = ["Low", "Moderate", "High"];
 $dietOptions     = ["Poor", "Average", "Good"];
 $daysOfWeek      = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
@@ -81,7 +79,7 @@ $success = isset($_GET["success"]);
 /* ══ HANDLE UPDATE ══════════════════════════════════════════════════ */
 if ($_SERVER["REQUEST_METHOD"] === "POST" && ($_POST["action"] ?? "") === "update_record") {
 
-  // auto-compute deltas from lab rounds
+  // ── Lab values ────────────────────────────────────────────────────
   $hb1  = ni($_POST["cbc_hb1"]           ?? null);
   $hb2  = ni($_POST["cbc_hb2"]           ?? null);
   $tlc1 = ni($_POST["cbc_tlc1"]          ?? null);
@@ -93,186 +91,106 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && ($_POST["action"] ?? "") === "updat
   $cr1  = ni($_POST["blood_creatinine1"] ?? null);
   $cr2  = ni($_POST["blood_creatinine2"] ?? null);
 
-  // use posted delta if provided, otherwise auto-calculate
-  $delta_hb   = ni($_POST["delta_hb"]         ?? null) ?? (($hb2  !== null && $hb1  !== null) ? round((float)$hb2  - (float)$hb1,  3) : null);
-  $delta_tlc  = ni($_POST["delta_tlc"]        ?? null) ?? (($tlc2 !== null && $tlc1 !== null) ? round((float)$tlc2 - (float)$tlc1, 3) : null);
-  $delta_plat = ni($_POST["delta_plat"]       ?? null) ?? (($pl2  !== null && $pl1  !== null) ? round((float)$pl2  - (float)$pl1,  3) : null);
-  $delta_uria = ni($_POST["delta_uria"]       ?? null) ?? (($ur2  !== null && $ur1  !== null) ? round((float)$ur2  - (float)$ur1,  3) : null);
-  $delta_crn  = ni($_POST["delta_creatinine"] ?? null) ?? (($cr2  !== null && $cr1  !== null) ? round((float)$cr2  - (float)$cr1,  3) : null);
+  // ── Auto-calculate averages ────────────────────────────────────────
+  $avg_hb   = ($hb1  !== null && $hb2  !== null) ? round(((float)$hb1  + (float)$hb2)  / 2, 3) : null;
+  $avg_tlc  = ($tlc1 !== null && $tlc2 !== null) ? round(((float)$tlc1 + (float)$tlc2) / 2, 3) : null;
+  $avg_plat = ($pl1  !== null && $pl2  !== null) ? round(((float)$pl1  + (float)$pl2)  / 2, 3) : null;
+  $avg_urea = ($ur1  !== null && $ur2  !== null) ? round(((float)$ur1  + (float)$ur2)  / 2, 3) : null;
+  $avg_crn  = ($cr1  !== null && $cr2  !== null) ? round(((float)$cr1  + (float)$cr2)  / 2, 3) : null;
 
-  // ── Assign every param to a named variable (bind_param requires references) ──
-  $p_age             = (int)($_POST["age"] ?? 0);
-  $p_checkin         = ni($_POST["checkin_date"]          ?? null);
-  $p_checkout        = ni($_POST["checkout_date"]         ?? null);
-  $p_los             = ni($_POST["length_of_stay"]        ?? null);
-  $p_avg_los         = ni($_POST["avg_length_stay"]       ?? null);
-  $p_month           = ni($_POST["month"]                 ?? null);
-  $p_year            = ni($_POST["year"]                  ?? null);
-  $p_dow             = ni($_POST["day_of_week"]           ?? null);
-  $p_adm_count       = ni($_POST["admission_count"]       ?? null);
+  // ── Auto-calculate deltas ─────────────────────────────────────────
+  $delta_hb   = ($hb1  !== null && $hb2  !== null) ? round((float)$hb2  - (float)$hb1,  3) : null;
+  $delta_tlc  = ($tlc1 !== null && $tlc2 !== null) ? round((float)$tlc2 - (float)$tlc1, 3) : null;
+  $delta_plat = ($pl1  !== null && $pl2  !== null) ? round((float)$pl2  - (float)$pl1,  3) : null;
+  $delta_uria = ($ur1  !== null && $ur2  !== null) ? round((float)$ur2  - (float)$ur1,  3) : null;
+  $delta_crn  = ($cr1  !== null && $cr2  !== null) ? round((float)$cr2  - (float)$cr1,  3) : null;
 
-  // averages
-  $p_avg_hb          = ni($_POST["avg_hb"]                ?? null);
-  $p_avg_tlc         = ni($_POST["avg_tlc"]               ?? null);
-  $p_avg_plat        = ni($_POST["avg_platelets"]         ?? null);
-  $p_avg_urea        = ni($_POST["avg_urea"]              ?? null);
-  $p_avg_crn         = ni($_POST["avg_creatinine"]        ?? null);
+  // ── All other params ──────────────────────────────────────────────
+  $p_age        = (int)($_POST["age"] ?? 0);
+  $p_checkin    = ni($_POST["checkin_date"]          ?? null);
+  $p_checkout   = ni($_POST["checkout_date"]         ?? null);
+  $p_los        = ni($_POST["length_of_stay"]        ?? null);
+  $p_avg_los    = ni($_POST["avg_length_stay"]       ?? null);
+  $p_month      = ni($_POST["month"]                 ?? null);
+  $p_year       = ni($_POST["year"]                  ?? null);
+  $p_dow        = ni($_POST["day_of_week"]           ?? null);
+  $p_adm_count  = ni($_POST["admission_count"]       ?? null);
+  $p_bmi        = ni($_POST["bmi"]                   ?? null);
+  $p_glucose    = ni($_POST["glucose"]               ?? null);
+  $p_cholesterol= ni($_POST["cholesterol_level"]     ?? null);
+  $p_sbp        = ni($_POST["systolic_bp"]           ?? null);
 
-  // vitals
-  $p_bmi             = ni($_POST["bmi"]                   ?? null);
-  $p_glucose         = ni($_POST["glucose"]               ?? null);
-  $p_cholesterol     = ni($_POST["cholesterol_level"]     ?? null);
-  $p_sbp             = ni($_POST["systolic_bp"]           ?? null);
+  // ── smoking: boolean int — NOT via ni() because ni("0") returns null ──
+  $smokingRaw   = $_POST["smoking_status"] ?? "";
+  $p_smoking    = ($smokingRaw === "") ? null : (int)$smokingRaw;
 
-  // lifestyle
-  $p_smoking         = ni($_POST["smoking_status"]        ?? null);
-  $p_activity        = ni($_POST["physical_activity_level"] ?? null);
-  $p_diet            = ni($_POST["diet_quality"]          ?? null);
-  $p_sleep           = ni($_POST["sleep_hours"]           ?? null);
-  $p_alcohol         = isset($_POST["alcohol_consumption"]) ? 1 : 0;
-
-  // risk scores
-  $p_stress          = ni($_POST["stress_level"]          ?? null);
-  $p_family          = ni($_POST["family_history"]        ?? null);
-  $p_meds            = ni($_POST["medications_count"]     ?? null);
-  $p_risk            = ni($_POST["risk_score"]            ?? null);
-  $p_burden          = ni($_POST["symptom_burden"]        ?? null);
-  $p_seasonal        = ni($_POST["seasonal_weight"]       ?? null);
-
-  // symptoms
-  $p_fever           = ni($_POST["fever"]                 ?? null);
-  $p_cough           = ni($_POST["cough"]                 ?? null);
-  $p_fatigue         = ni($_POST["fatigue"]               ?? null);
-  $p_sob             = ni($_POST["shortness_of_breath"]   ?? null);
-  $p_chest           = isset($_POST["chest_pain"]) ? 1 : 0;
-  $p_headache        = isset($_POST["headache"])   ? 1 : 0;
-
-  // flags
-  $p_diabetes        = isset($_POST["has_diabetes"])       ? 1 : 0;
-  $p_hypertension    = isset($_POST["has_hypertension"])   ? 1 : 0;
-  $p_kidney          = isset($_POST["has_kidney_disease"]) ? 1 : 0;
-  $p_heart           = isset($_POST["has_heart_disease"])  ? 1 : 0;
-
-  // diagnosis
-  $p_diagnosis       = ni($_POST["diagnosis"]             ?? null);
-  $p_disease_cat     = ni($_POST["disease_category"]      ?? null);
+  $p_activity   = ni($_POST["physical_activity_level"] ?? null);
+  $p_diet       = ni($_POST["diet_quality"]          ?? null);
+  $p_sleep      = ni($_POST["sleep_hours"]           ?? null);
+  $p_alcohol    = isset($_POST["alcohol_consumption"]) ? 1 : 0;
+  $p_stress     = ni($_POST["stress_level"]          ?? null);
+  $p_family     = ni($_POST["family_history"]        ?? null);
+  $p_meds       = ni($_POST["medications_count"]     ?? null);
+  $p_risk       = ni($_POST["risk_score"]            ?? null);
+  $p_burden     = ni($_POST["symptom_burden"]        ?? null);
+  $p_seasonal   = ni($_POST["seasonal_weight"]       ?? null);
+  $p_fever      = ni($_POST["fever"]                 ?? null);
+  $p_cough      = ni($_POST["cough"]                 ?? null);
+  $p_fatigue    = ni($_POST["fatigue"]               ?? null);
+  $p_sob        = ni($_POST["shortness_of_breath"]   ?? null);
+  $p_chest      = isset($_POST["chest_pain"])        ? 1 : 0;
+  $p_headache   = isset($_POST["headache"])          ? 1 : 0;
+  $p_diabetes   = isset($_POST["has_diabetes"])      ? 1 : 0;
+  $p_htn        = isset($_POST["has_hypertension"])  ? 1 : 0;
+  $p_kidney     = isset($_POST["has_kidney_disease"]) ? 1 : 0;
+  $p_heart      = isset($_POST["has_heart_disease"]) ? 1 : 0;
+  $p_diagnosis  = ni($_POST["diagnosis"]             ?? null);
+  $p_disease_cat= ni($_POST["disease_category"]      ?? null);
 
   $sql = "
     UPDATE medical_records SET
-      age                     = ?,
-      checkin_date            = ?,
-      checkout_date           = ?,
-      length_of_stay          = ?,
-      avg_length_stay         = ?,
-      month                   = ?,
-      year                    = ?,
-      day_of_week             = ?,
-      admission_count         = ?,
-
-      cbc_hb1                 = ?,
-      cbc_tlc1                = ?,
-      cbc_plat1               = ?,
-      blood_uria1             = ?,
-      blood_creatinine1       = ?,
-      cbc_hb2                 = ?,
-      cbc_tlc2                = ?,
-      cbc_plat2               = ?,
-      blood_uria2             = ?,
-      blood_creatinine2       = ?,
-
-      avg_hb                  = ?,
-      avg_tlc                 = ?,
-      avg_platelets           = ?,
-      avg_urea                = ?,
-      avg_creatinine          = ?,
-
-      delta_hb                = ?,
-      delta_tlc               = ?,
-      delta_plat              = ?,
-      delta_uria              = ?,
-      delta_creatinine        = ?,
-
-      bmi                     = ?,
-      glucose                 = ?,
-      cholesterol_level       = ?,
-      systolic_bp             = ?,
-
-      smoking_status          = ?,
-      physical_activity_level = ?,
-      diet_quality            = ?,
-      sleep_hours             = ?,
-      alcohol_consumption     = ?,
-
-      stress_level            = ?,
-      family_history          = ?,
-      medications_count       = ?,
-      risk_score              = ?,
-      symptom_burden          = ?,
-      seasonal_weight         = ?,
-
-      fever                   = ?,
-      cough                   = ?,
-      fatigue                 = ?,
-      shortness_of_breath     = ?,
-      chest_pain              = ?,
-      headache                = ?,
-
-      has_diabetes            = ?,
-      has_hypertension        = ?,
-      has_kidney_disease      = ?,
-      has_heart_disease       = ?,
-
-      diagnosis               = ?,
-      disease_category        = ?
-
+      age = ?, checkin_date = ?, checkout_date = ?,
+      length_of_stay = ?, avg_length_stay = ?,
+      month = ?, year = ?, day_of_week = ?, admission_count = ?,
+      cbc_hb1 = ?, cbc_tlc1 = ?, cbc_plat1 = ?, blood_uria1 = ?, blood_creatinine1 = ?,
+      cbc_hb2 = ?, cbc_tlc2 = ?, cbc_plat2 = ?, blood_uria2 = ?, blood_creatinine2 = ?,
+      avg_hb = ?, avg_tlc = ?, avg_platelets = ?, avg_urea = ?, avg_creatinine = ?,
+      delta_hb = ?, delta_tlc = ?, delta_plat = ?, delta_uria = ?, delta_creatinine = ?,
+      bmi = ?, glucose = ?, cholesterol_level = ?, systolic_bp = ?,
+      smoking_status = ?, physical_activity_level = ?, diet_quality = ?,
+      sleep_hours = ?, alcohol_consumption = ?,
+      stress_level = ?, family_history = ?, medications_count = ?,
+      risk_score = ?, symptom_burden = ?, seasonal_weight = ?,
+      fever = ?, cough = ?, fatigue = ?, shortness_of_breath = ?,
+      chest_pain = ?, headache = ?,
+      has_diabetes = ?, has_hypertension = ?, has_kidney_disease = ?, has_heart_disease = ?,
+      diagnosis = ?, disease_category = ?
     WHERE record_id = ? AND patient_id = ?
   ";
-
-  // type string: 58 data params + 2 WHERE = 60 total
-  // i=age, s=checkin, s=checkout, s=los, s=avg_los, s=month, s=year, s=dow, s=adm_count (9)
-  // s=hb1,s=tlc1,s=pl1,s=ur1,s=cr1,s=hb2,s=tlc2,s=pl2,s=ur2,s=cr2 (10)
-  // s=avghb,s=avgtlc,s=avgpl,s=avgur,s=avgcr (5)
-  // s=dhb,s=dtlc,s=dpl,s=dur,s=dcr (5)
-  // s=bmi,s=gluc,s=chol,s=sbp (4)
-  // s=smk,s=act,s=diet,s=sleep,i=alc (5)
-  // s=stress,s=fam,s=meds,s=risk,s=burden,s=seasonal (6)
-  // s=fever,s=cough,s=fatigue,s=sob,i=chest,i=headache (6)
-  // i=diab,i=htn,i=kidney,i=heart (4)
-  // s=diag,s=discat (2)
-  // i=record_id,i=patient_id (2)
-  // total = 58 + 2 = 60
-  $types = "issssssss" . "ssssssssss" . "sssss" . "sssss" . "ssss" . "ssssi" . "ssssss" . "ssssii" . "iiii" . "ss" . "ii";
 
   $stmt = $conn->prepare($sql);
   if (!$stmt) {
     $error = "Prepare failed: " . $conn->error;
   } else {
+    $types = str_repeat("s", 56) . "ii";
     $stmt->bind_param(
       $types,
-      // admission (9)
-      $p_age, $p_checkin, $p_checkout, $p_los, $p_avg_los,
+      $p_age, $p_checkin, $p_checkout,
+      $p_los, $p_avg_los,
       $p_month, $p_year, $p_dow, $p_adm_count,
-      // lab round 1 (5)
       $hb1, $tlc1, $pl1, $ur1, $cr1,
-      // lab round 2 (5)
       $hb2, $tlc2, $pl2, $ur2, $cr2,
-      // averages (5)
-      $p_avg_hb, $p_avg_tlc, $p_avg_plat, $p_avg_urea, $p_avg_crn,
-      // deltas (5)
+      $avg_hb, $avg_tlc, $avg_plat, $avg_urea, $avg_crn,
       $delta_hb, $delta_tlc, $delta_plat, $delta_uria, $delta_crn,
-      // vitals (4)
       $p_bmi, $p_glucose, $p_cholesterol, $p_sbp,
-      // lifestyle (5)
-      $p_smoking, $p_activity, $p_diet, $p_sleep, $p_alcohol,
-      // risk scores (6)
-      $p_stress, $p_family, $p_meds, $p_risk, $p_burden, $p_seasonal,
-      // symptoms (6)
-      $p_fever, $p_cough, $p_fatigue, $p_sob, $p_chest, $p_headache,
-      // flags (4)
-      $p_diabetes, $p_hypertension, $p_kidney, $p_heart,
-      // diagnosis (2)
+      $p_smoking, $p_activity, $p_diet,
+      $p_sleep, $p_alcohol,
+      $p_stress, $p_family, $p_meds,
+      $p_risk, $p_burden, $p_seasonal,
+      $p_fever, $p_cough, $p_fatigue, $p_sob,
+      $p_chest, $p_headache,
+      $p_diabetes, $p_htn, $p_kidney, $p_heart,
       $p_diagnosis, $p_disease_cat,
-      // WHERE (2)
       $record_id, $patient_id
     );
 
@@ -286,12 +204,21 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && ($_POST["action"] ?? "") === "updat
     }
   }
 
-  // Re-fetch record so form shows latest posted values on error
+  // Re-fetch so form reflects saved state on error
   $stmt = $conn->prepare("SELECT * FROM medical_records WHERE record_id = ? AND patient_id = ? LIMIT 1");
   $stmt->bind_param("ii", $record_id, $patient_id);
   $stmt->execute();
   $record = $stmt->get_result()->fetch_assoc();
   $stmt->close();
+}
+
+/**
+ * Helper to pre-select the smoking dropdown correctly.
+ * The DB stores NULL, 0, or 1 — we compare strictly.
+ */
+function smokingSel($recordVal, $optionVal): string {
+  if ($recordVal === null || $recordVal === "") return "";
+  return ((int)$recordVal === (int)$optionVal) ? "selected" : "";
 }
 ?>
 <!DOCTYPE html>
@@ -312,11 +239,19 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && ($_POST["action"] ?? "") === "updat
       color: #4e73df;
       margin: 1.25rem 0 .6rem;
     }
-    .card-header.section-header {
+    .calc-preview {
       background: #f0f4ff;
-      border-bottom: 1px solid #d8e0ff;
-      padding: .6rem 1rem;
+      border: 1px dashed #4e73df;
+      border-radius: 8px;
+      padding: 12px 16px;
+      font-size: 13px;
     }
+    .calc-preview .calc-row { display: flex; flex-wrap: wrap; gap: 16px; }
+    .calc-item { min-width: 110px; }
+    .calc-item .ci-label { color: #888; font-size: 11px; text-transform: uppercase; }
+    .calc-item .ci-value { font-weight: 700; font-size: 15px; color: #2e2e3a; }
+    .ci-pos { color: #1cc88a !important; }
+    .ci-neg { color: #e74a3b !important; }
   </style>
 </head>
 <body class="bg-light">
@@ -465,67 +400,29 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && ($_POST["action"] ?? "") === "updat
           </div>
         </div>
 
-        <hr>
-
-        <!-- ══ 3. AVERAGES ══════════════════════════════════════════ -->
-        <p class="section-title"><i class="fas fa-calculator mr-1"></i> 3. Averages</p>
-        <div class="row">
-          <div class="col-md-2 form-group">
-            <label>Avg HB</label>
-            <input type="number" step="0.01" name="avg_hb" class="form-control" value="<?= e($record["avg_hb"]) ?>">
+        <!-- Live preview of auto-calculated averages & deltas -->
+        <div class="calc-preview mb-3" id="calcPreview">
+          <div class="mb-2 font-weight-bold text-primary" style="font-size:12px;">
+            <i class="fas fa-magic mr-1"></i> AUTO-CALCULATED FROM LAB VALUES (saved automatically — not editable)
           </div>
-          <div class="col-md-2 form-group">
-            <label>Avg TLC</label>
-            <input type="number" step="0.01" name="avg_tlc" class="form-control" value="<?= e($record["avg_tlc"]) ?>">
-          </div>
-          <div class="col-md-3 form-group">
-            <label>Avg Platelets</label>
-            <input type="number" step="0.01" name="avg_platelets" class="form-control" value="<?= e($record["avg_platelets"]) ?>">
-          </div>
-          <div class="col-md-2 form-group">
-            <label>Avg Urea</label>
-            <input type="number" step="0.01" name="avg_urea" class="form-control" value="<?= e($record["avg_urea"]) ?>">
-          </div>
-          <div class="col-md-3 form-group">
-            <label>Avg Creatinine</label>
-            <input type="number" step="0.01" name="avg_creatinine" class="form-control" value="<?= e($record["avg_creatinine"]) ?>">
+          <div class="calc-row">
+            <div class="calc-item"><div class="ci-label">Avg HB</div><div class="ci-value" id="prev_avg_hb"><?= e($record["avg_hb"]) ?></div></div>
+            <div class="calc-item"><div class="ci-label">Avg TLC</div><div class="ci-value" id="prev_avg_tlc"><?= e($record["avg_tlc"]) ?></div></div>
+            <div class="calc-item"><div class="ci-label">Avg Platelets</div><div class="ci-value" id="prev_avg_plat"><?= e($record["avg_platelets"]) ?></div></div>
+            <div class="calc-item"><div class="ci-label">Avg Urea</div><div class="ci-value" id="prev_avg_urea"><?= e($record["avg_urea"]) ?></div></div>
+            <div class="calc-item"><div class="ci-label">Avg Creatinine</div><div class="ci-value" id="prev_avg_crn"><?= e($record["avg_creatinine"]) ?></div></div>
+            <div class="calc-item"><div class="ci-label">Δ HB</div><div class="ci-value <?= ((float)($record["delta_hb"] ?? 0) >= 0) ? 'ci-pos' : 'ci-neg' ?>" id="prev_d_hb"><?= e($record["delta_hb"]) ?></div></div>
+            <div class="calc-item"><div class="ci-label">Δ TLC</div><div class="ci-value <?= ((float)($record["delta_tlc"] ?? 0) >= 0) ? 'ci-pos' : 'ci-neg' ?>" id="prev_d_tlc"><?= e($record["delta_tlc"]) ?></div></div>
+            <div class="calc-item"><div class="ci-label">Δ Platelets</div><div class="ci-value <?= ((float)($record["delta_plat"] ?? 0) >= 0) ? 'ci-pos' : 'ci-neg' ?>" id="prev_d_plat"><?= e($record["delta_plat"]) ?></div></div>
+            <div class="calc-item"><div class="ci-label">Δ Urea</div><div class="ci-value <?= ((float)($record["delta_uria"] ?? 0) >= 0) ? 'ci-pos' : 'ci-neg' ?>" id="prev_d_urea"><?= e($record["delta_uria"]) ?></div></div>
+            <div class="calc-item"><div class="ci-label">Δ Creatinine</div><div class="ci-value <?= ((float)($record["delta_creatinine"] ?? 0) >= 0) ? 'ci-pos' : 'ci-neg' ?>" id="prev_d_crn"><?= e($record["delta_creatinine"]) ?></div></div>
           </div>
         </div>
 
         <hr>
 
-        <!-- ══ 4. DELTAS ════════════════════════════════════════════ -->
-        <p class="section-title">
-          <i class="fas fa-exchange-alt mr-1"></i> 4. Delta Values
-          <small class="text-muted font-weight-normal">(auto-calculated from lab rounds — override if needed)</small>
-        </p>
-        <div class="row">
-          <div class="col-md-2 form-group">
-            <label>Δ HB</label>
-            <input type="number" step="0.001" name="delta_hb" class="form-control" value="<?= e($record["delta_hb"]) ?>">
-          </div>
-          <div class="col-md-2 form-group">
-            <label>Δ TLC</label>
-            <input type="number" step="0.001" name="delta_tlc" class="form-control" value="<?= e($record["delta_tlc"]) ?>">
-          </div>
-          <div class="col-md-3 form-group">
-            <label>Δ Platelets</label>
-            <input type="number" step="0.001" name="delta_plat" class="form-control" value="<?= e($record["delta_plat"]) ?>">
-          </div>
-          <div class="col-md-2 form-group">
-            <label>Δ Urea</label>
-            <input type="number" step="0.001" name="delta_uria" class="form-control" value="<?= e($record["delta_uria"]) ?>">
-          </div>
-          <div class="col-md-3 form-group">
-            <label>Δ Creatinine</label>
-            <input type="number" step="0.001" name="delta_creatinine" class="form-control" value="<?= e($record["delta_creatinine"]) ?>">
-          </div>
-        </div>
-
-        <hr>
-
-        <!-- ══ 5. VITALS ═════════════════════════════════════════════ -->
-        <p class="section-title"><i class="fas fa-heartbeat mr-1"></i> 5. Vitals</p>
+        <!-- ══ 3. VITALS ═════════════════════════════════════════════ -->
+        <p class="section-title"><i class="fas fa-heartbeat mr-1"></i> 3. Vitals</p>
         <div class="row">
           <div class="col-md-3 form-group">
             <label>BMI</label>
@@ -540,23 +437,30 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && ($_POST["action"] ?? "") === "updat
             <input type="number" step="0.01" name="cholesterol_level" class="form-control" value="<?= e($record["cholesterol_level"]) ?>">
           </div>
           <div class="col-md-3 form-group">
-            <label>Systolic BP</label>
-            <input type="number" step="0.01" name="systolic_bp" class="form-control" value="<?= e($record["systolic_bp"]) ?>">
+            <label>Blood Pressure <small class="text-muted">(mmHg)</small></label>
+            <div class="input-group">
+              <input type="number" name="systolic_bp" class="form-control" placeholder="Systolic"
+                     min="0" value="<?= e($record["systolic_bp"]) ?>">
+              <div class="input-group-prepend input-group-append">
+               
+              </div>
+              
+            </div>
+          
           </div>
         </div>
 
         <hr>
 
-        <!-- ══ 6. LIFESTYLE ══════════════════════════════════════════ -->
-        <p class="section-title"><i class="fas fa-running mr-1"></i> 6. Lifestyle</p>
+        <!-- ══ 4. LIFESTYLE ══════════════════════════════════════════ -->
+        <p class="section-title"><i class="fas fa-running mr-1"></i> 4. Lifestyle</p>
         <div class="row">
           <div class="col-md-3 form-group">
             <label>Smoking Status</label>
             <select name="smoking_status" class="form-control">
               <option value="">— Select —</option>
-              <?php foreach ($smokingOptions as $opt): ?>
-                <option value="<?= e($opt) ?>" <?= sel($record["smoking_status"], $opt) ?>><?= e($opt) ?></option>
-              <?php endforeach; ?>
+              <option value="1" <?= smokingSel($record["smoking_status"], 1) ?>>Smoker</option>
+              <option value="0" <?= smokingSel($record["smoking_status"], 0) ?>>Non-Smoker</option>
             </select>
           </div>
           <div class="col-md-3 form-group">
@@ -593,8 +497,8 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && ($_POST["action"] ?? "") === "updat
 
         <hr>
 
-        <!-- ══ 7. RISK SCORES ════════════════════════════════════════ -->
-        <p class="section-title"><i class="fas fa-chart-line mr-1"></i> 7. Risk Scores</p>
+        <!-- ══ 5. RISK SCORES ════════════════════════════════════════ -->
+        <p class="section-title"><i class="fas fa-chart-line mr-1"></i> 5. Risk Scores</p>
         <div class="row">
           <div class="col-md-2 form-group">
             <label>Stress Level</label>
@@ -624,8 +528,8 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && ($_POST["action"] ?? "") === "updat
 
         <hr>
 
-        <!-- ══ 8. SYMPTOMS ═══════════════════════════════════════════ -->
-        <p class="section-title"><i class="fas fa-thermometer-half mr-1"></i> 8. Symptoms</p>
+        <!-- ══ 6. SYMPTOMS ═══════════════════════════════════════════ -->
+        <p class="section-title"><i class="fas fa-thermometer-half mr-1"></i> 6. Symptoms</p>
         <div class="row">
           <div class="col-md-2 form-group">
             <label>Fever Score</label>
@@ -663,8 +567,8 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && ($_POST["action"] ?? "") === "updat
 
         <hr>
 
-        <!-- ══ 9. MEDICAL HISTORY FLAGS ══════════════════════════════ -->
-        <p class="section-title"><i class="fas fa-clipboard-check mr-1"></i> 9. Medical History Flags</p>
+        <!-- ══ 7. MEDICAL HISTORY FLAGS ══════════════════════════════ -->
+        <p class="section-title"><i class="fas fa-clipboard-check mr-1"></i> 7. Medical History Flags</p>
         <div class="row">
           <div class="col-md-3">
             <div class="form-check">
@@ -698,8 +602,8 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && ($_POST["action"] ?? "") === "updat
 
         <hr>
 
-        <!-- ══ 10. DIAGNOSIS ═════════════════════════════════════════ -->
-        <p class="section-title"><i class="fas fa-stethoscope mr-1"></i> 10. Diagnosis</p>
+        <!-- ══ 8. DIAGNOSIS ═════════════════════════════════════════ -->
+        <p class="section-title"><i class="fas fa-stethoscope mr-1"></i> 8. Diagnosis</p>
         <div class="row">
           <div class="col-md-6 form-group">
             <label>Primary Diagnosis</label>
@@ -709,14 +613,20 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && ($_POST["action"] ?? "") === "updat
           </div>
           <div class="col-md-6 form-group">
             <label>Disease Category</label>
-            <input type="text" name="disease_category" class="form-control"
-                   value="<?= e($record["disease_category"]) ?>"
-                   placeholder="e.g. Cardiovascular, Metabolic, Renal">
+            <select name="disease_category" class="form-control">
+              <option value="">— Select Category —</option>
+              <?php
+              $categories = ["Cardiovascular","Oncological","Metabolic","Respiratory","Renal","Neurological","Healthy","Other"];
+              foreach ($categories as $cat):
+              ?>
+                <option value="<?= e($cat) ?>" <?= sel($record["disease_category"], $cat) ?>><?= e($cat) ?></option>
+              <?php endforeach; ?>
+            </select>
           </div>
         </div>
 
         <!-- ── Submit ──────────────────────────────────────────────── -->
-        <div class="mt-4 d-flex gap-2">
+        <div class="mt-4">
           <button class="btn btn-primary btn-lg btn-block" type="submit">
             <i class="fas fa-save mr-1"></i> Save Changes
           </button>
@@ -733,25 +643,52 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && ($_POST["action"] ?? "") === "updat
 <script src="Js/sb-admin-2.min.js"></script>
 
 <script>
-// Auto-calculate deltas when lab values change
-function calcDelta(id1, id2, deltaId) {
-  var v1 = parseFloat(document.querySelector('[name="'+id1+'"]').value);
-  var v2 = parseFloat(document.querySelector('[name="'+id2+'"]').value);
-  if (!isNaN(v1) && !isNaN(v2)) {
-    document.querySelector('[name="'+deltaId+'"]').value = (v2 - v1).toFixed(3);
-  }
+const labIds = ['cbc_hb1','cbc_hb2','cbc_tlc1','cbc_tlc2',
+                'cbc_plat1','cbc_plat2','blood_uria1','blood_uria2',
+                'blood_creatinine1','blood_creatinine2'];
+
+labIds.forEach(id => {
+  const el = document.querySelector('[name="'+id+'"]');
+  if (el) el.addEventListener('input', updateCalcPreview);
+});
+
+function v(name) {
+  const el = document.querySelector('[name="'+name+'"]');
+  if (!el) return null;
+  const val = parseFloat(el.value);
+  return isNaN(val) ? null : val;
 }
 
-['cbc_hb1','cbc_hb2','cbc_tlc1','cbc_tlc2','cbc_plat1','cbc_plat2',
- 'blood_uria1','blood_uria2','blood_creatinine1','blood_creatinine2'].forEach(function(n) {
-  document.querySelector('[name="'+n+'"]').addEventListener('input', function() {
-    calcDelta('cbc_hb1',           'cbc_hb2',           'delta_hb');
-    calcDelta('cbc_tlc1',          'cbc_tlc2',          'delta_tlc');
-    calcDelta('cbc_plat1',         'cbc_plat2',         'delta_plat');
-    calcDelta('blood_uria1',       'blood_uria2',        'delta_uria');
-    calcDelta('blood_creatinine1', 'blood_creatinine2',  'delta_creatinine');
-  });
-});
+function fmt(val, elId, isDelta) {
+  const el = document.getElementById(elId);
+  if (!el) return;
+  if (val === null) { el.textContent = '—'; el.className = 'ci-value'; return; }
+  el.textContent = val.toFixed(3);
+  if (isDelta) el.className = 'ci-value ' + (val >= 0 ? 'ci-pos' : 'ci-neg');
+  else el.className = 'ci-value';
+}
+
+function calcAvg(a, b)   { return (a !== null && b !== null) ? Math.round((a+b)/2*1000)/1000 : null; }
+function calcDelta(a, b) { return (a !== null && b !== null) ? Math.round((b-a)*1000)/1000   : null; }
+
+function updateCalcPreview() {
+  const hb1=v('cbc_hb1'), hb2=v('cbc_hb2');
+  const tl1=v('cbc_tlc1'), tl2=v('cbc_tlc2');
+  const pl1=v('cbc_plat1'), pl2=v('cbc_plat2');
+  const ur1=v('blood_uria1'), ur2=v('blood_uria2');
+  const cr1=v('blood_creatinine1'), cr2=v('blood_creatinine2');
+
+  fmt(calcAvg(hb1,hb2),   'prev_avg_hb',   false);
+  fmt(calcAvg(tl1,tl2),   'prev_avg_tlc',  false);
+  fmt(calcAvg(pl1,pl2),   'prev_avg_plat', false);
+  fmt(calcAvg(ur1,ur2),   'prev_avg_urea', false);
+  fmt(calcAvg(cr1,cr2),   'prev_avg_crn',  false);
+  fmt(calcDelta(hb1,hb2), 'prev_d_hb',     true);
+  fmt(calcDelta(tl1,tl2), 'prev_d_tlc',    true);
+  fmt(calcDelta(pl1,pl2), 'prev_d_plat',   true);
+  fmt(calcDelta(ur1,ur2), 'prev_d_urea',   true);
+  fmt(calcDelta(cr1,cr2), 'prev_d_crn',    true);
+}
 </script>
 
 </body>
