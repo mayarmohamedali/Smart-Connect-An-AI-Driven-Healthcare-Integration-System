@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Apr 07, 2026 at 11:46 AM
+-- Generation Time: Apr 08, 2026 at 11:28 PM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.2.12
 
@@ -60,6 +60,15 @@ CREATE TABLE `claims` (
   `claim_status` enum('Approved','Rejected','Pending') NOT NULL DEFAULT 'Pending',
   `created_at` timestamp NOT NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `claims`
+--
+
+INSERT INTO `claims` (`claim_id`, `record_id`, `patient_id`, `insurance_id`, `service_id`, `treatment_cost`, `coverage_percentage`, `cost_coverage_ratio`, `claim_amount`, `avg_claim`, `claim_status`, `created_at`) VALUES
+(1, 5, 13, 1, 1, 500.00, NULL, NULL, 500.00, NULL, 'Pending', '2026-04-08 08:28:32'),
+(2, 5, 13, 1, 4, 2000.00, NULL, NULL, 2000.00, NULL, 'Pending', '2026-04-08 08:29:40'),
+(3, 5, 13, 1, 1, 500.00, NULL, NULL, 500.00, NULL, 'Pending', '2026-04-08 08:30:20');
 
 -- --------------------------------------------------------
 
@@ -229,7 +238,7 @@ CREATE TABLE `medical_records` (
   `delta_creatinine` decimal(7,3) DEFAULT NULL,
   `length_of_stay` int(11) DEFAULT NULL,
   `avg_length_stay` decimal(10,6) DEFAULT NULL,
-  `smoking_status` enum('Non-Smoker','Smoker','Former Smoker') DEFAULT NULL,
+  `smoking_status` tinyint(1) DEFAULT NULL,
   `physical_activity_level` enum('Low','Moderate','High') DEFAULT NULL,
   `diet_quality` enum('Poor','Average','Good') DEFAULT NULL,
   `alcohol_consumption` tinyint(1) DEFAULT NULL,
@@ -261,10 +270,12 @@ CREATE TABLE `medical_records` (
 
 INSERT INTO `medical_records` (`record_id`, `patient_id`, `age`, `checkin_date`, `checkout_date`, `cbc_hb1`, `cbc_tlc1`, `cbc_plat1`, `blood_uria1`, `blood_creatinine1`, `cbc_hb2`, `cbc_tlc2`, `cbc_plat2`, `blood_uria2`, `blood_creatinine2`, `bmi`, `glucose`, `cholesterol_level`, `systolic_bp`, `month`, `year`, `day_of_week`, `admission_count`, `avg_creatinine`, `avg_urea`, `avg_hb`, `avg_tlc`, `avg_platelets`, `delta_hb`, `delta_tlc`, `delta_plat`, `delta_uria`, `delta_creatinine`, `length_of_stay`, `avg_length_stay`, `smoking_status`, `physical_activity_level`, `diet_quality`, `alcohol_consumption`, `sleep_hours`, `stress_level`, `family_history`, `medications_count`, `risk_score`, `symptom_burden`, `seasonal_weight`, `has_diabetes`, `has_hypertension`, `has_kidney_disease`, `has_heart_disease`, `fever`, `cough`, `fatigue`, `chest_pain`, `shortness_of_breath`, `headache`, `diagnosis`, `disease_category`, `created_at`) VALUES
 (1, 10, 30, '2026-01-28', '2026-02-01', 3.00, 4.00, 4.00, 6.00, 6.00, 2.00, 4.00, 6.00, 6.00, 2.00, 12.00, 23.00, NULL, 4, 1, NULL, NULL, 6, 5.00, 6.00, 7.00, 8.00, 6.00, NULL, NULL, NULL, NULL, NULL, 5, NULL, NULL, 'Moderate', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 1, 0, 0, 0, NULL, NULL, NULL, NULL, NULL, NULL, 'diabetes', NULL, '2026-02-02 09:45:38'),
-(3, 11, 40, '2026-02-01', '2026-02-03', 3.00, 4.00, 4.00, 6.00, 6.00, 2.00, 5.00, 7.00, 8.00, 12.00, 12.00, 23.00, NULL, 5, 2, NULL, NULL, 6, 5.00, 6.00, 7.00, 8.00, 6.00, NULL, NULL, NULL, NULL, NULL, 5, NULL, 'Non-Smoker', 'Low', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 1, 0, 0, 0, NULL, NULL, NULL, NULL, NULL, NULL, 'hypertensi', NULL, '2026-02-02 10:48:28'),
-(4, 12, 21, '2026-02-03', '2026-02-04', 3.00, 4.00, 4.00, 6.00, 6.00, 2.00, 5.00, 7.00, 8.00, 12.00, 12.00, 23.00, NULL, 5, 2, NULL, NULL, 6, 5.00, 6.00, 7.00, 8.00, 6.00, NULL, NULL, NULL, NULL, NULL, 2, NULL, 'Non-Smoker', 'Moderate', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 1, 0, 0, 0, NULL, NULL, NULL, NULL, NULL, NULL, 'diabetes', NULL, '2026-02-04 00:14:58'),
-(5, 13, 22, '2026-02-01', '2026-02-02', 3.00, 4.00, 4.00, 6.00, 6.00, 4.00, 4.00, 6.00, 6.00, 12.00, 12.00, 23.00, NULL, 5, 2, NULL, NULL, 6, 5.00, 6.00, 7.00, 8.00, 6.00, NULL, NULL, NULL, NULL, NULL, 2, NULL, 'Non-Smoker', 'Low', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 1, 0, 0, 0, NULL, NULL, NULL, NULL, NULL, NULL, 'diabetes', NULL, '2026-02-04 03:28:26'),
-(6, 19, 81, '2026-02-02', '2026-02-05', 3.00, 4.00, 4.00, 7.00, 10.00, 2.00, 4.00, 7.00, 8.00, 12.00, 12.00, 23.00, NULL, 5, 2, NULL, NULL, 6, 5.00, 6.00, 7.00, 8.00, 6.00, NULL, NULL, NULL, NULL, NULL, 5, NULL, 'Smoker', 'Low', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 1, 0, 1, 0, NULL, NULL, NULL, NULL, NULL, NULL, 'diabetes', NULL, '2026-02-06 05:28:14');
+(3, 11, 40, '2026-02-01', '2026-02-03', 3.00, 4.00, 4.00, 6.00, 6.00, 2.00, 5.00, 7.00, 8.00, 12.00, 12.00, 23.00, NULL, 5, 2, NULL, NULL, 6, 5.00, 6.00, 7.00, 8.00, 6.00, NULL, NULL, NULL, NULL, NULL, 5, NULL, NULL, 'Low', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 1, 0, 0, 0, NULL, NULL, NULL, NULL, NULL, NULL, 'hypertensi', NULL, '2026-02-02 10:48:28'),
+(4, 12, 21, '2026-02-03', '2026-02-04', 3.00, 4.00, 4.00, 6.00, 6.00, 2.00, 5.00, 7.00, 8.00, 12.00, 12.00, 23.00, NULL, 5, 2, NULL, NULL, 6, 5.00, 6.00, 7.00, 8.00, 6.00, NULL, NULL, NULL, NULL, NULL, 2, NULL, NULL, 'Moderate', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 1, 0, 0, 0, NULL, NULL, NULL, NULL, NULL, NULL, 'diabetes', NULL, '2026-02-04 00:14:58'),
+(5, 13, 22, '2026-02-01', '2026-02-02', 3.00, 4.00, 4.00, 6.00, 6.00, 4.00, 4.00, 6.00, 6.00, 12.00, 12.00, 23.00, NULL, 5, 2, NULL, NULL, 6, 5.00, 6.00, 7.00, 8.00, 6.00, NULL, NULL, NULL, NULL, NULL, 2, NULL, NULL, 'Low', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 1, 0, 0, 0, NULL, NULL, NULL, NULL, NULL, NULL, 'diabetes', NULL, '2026-02-04 03:28:26'),
+(6, 19, 81, '2026-02-02', '2026-02-05', 3.00, 4.00, 4.00, 7.00, 10.00, 2.00, 4.00, 7.00, 8.00, 12.00, 12.00, 23.00, NULL, 5, 2, NULL, NULL, 6, 5.00, 6.00, 7.00, 8.00, 6.00, NULL, NULL, NULL, NULL, NULL, 5, NULL, NULL, 'Low', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 1, 0, 1, 0, NULL, NULL, NULL, NULL, NULL, NULL, 'diabetes', NULL, '2026-02-06 05:28:14'),
+(7, 20, 20, '2026-03-31', '2026-04-05', 3.00, 4.00, 6.00, 6.00, 6.00, 2.00, 5.00, 7.00, 8.00, 12.00, 12.00, 23.00, 7.00, 120, 3, 2026, 'Monday', 1, 9.00, 7.00, 2.50, 4.50, 6.50, -1.000, 1.000, 1.000, 2.000, 6.000, 6, 4.000000, 1, 'Moderate', 'Poor', 1, 7.5, 7.0000, NULL, NULL, NULL, NULL, NULL, 1, 0, 0, 0, 1.0000, 1.0000, 1.0000, 1, 1.0000, 1, 'diabetes', 'Healthy', '2026-04-07 10:38:47'),
+(8, 21, 16, '2026-04-01', '2026-04-07', 3.00, 4.00, 6.00, 7.00, 10.00, 2.00, 5.00, 7.00, 6.00, 12.00, 12.00, 23.00, 7.00, 5, 4, 2026, 'Wednesday', 6, 11.00, 6.50, 2.50, 4.50, 6.50, -1.000, 1.000, 1.000, -1.000, 2.000, 6, 6.000000, NULL, 'High', 'Good', 0, 8.0, 10.0000, 0.0000, 0.0000, 0.00000000, 0.00000000, 50.00000000, 0, 0, 0, 0, 1.0000, 1.0000, 1.0000, NULL, 1.0000, 1, 'headache', NULL, '2026-04-08 06:30:38');
 
 -- --------------------------------------------------------
 
@@ -296,7 +307,9 @@ INSERT INTO `patients` (`patient_id`, `full_name`, `national_id`, `phone`, `gend
 (16, 'mahy moatasem', '27312090134570', '01001720391', 'F', 'fifth settlement', 1, NULL, 1, '2026-02-05 07:12:31'),
 (17, 'mohamed farouk', '27312090345690', '01095347822', 'M', 'fifth settlement', 1, NULL, 1, '2026-02-05 07:25:37'),
 (18, 'heba ayman', '27602150348290', '01006789906', 'F', 'maadi', 1, NULL, 1, '2026-02-05 09:17:46'),
-(19, 'khaled zaky', '24502010123456', '01009876544', 'M', 'fifth settlement', 1, NULL, 1, '2026-02-06 05:25:28');
+(19, 'khaled zaky', '24502010123456', '01009876544', 'M', 'fifth settlement', 1, NULL, 1, '2026-02-06 05:25:28'),
+(20, 'zaky khaled mohamed', '50506070200487', '01009874522', 'M', 'nasr city', 1, NULL, 1, '2026-04-07 10:03:35'),
+(21, 'merna mohamed farouk', '30907190103323', '01095239935', 'F', 'first settlement', 1, NULL, 1, '2026-04-08 06:27:34');
 
 -- --------------------------------------------------------
 
@@ -543,7 +556,7 @@ ALTER TABLE `category`
 -- AUTO_INCREMENT for table `claims`
 --
 ALTER TABLE `claims`
-  MODIFY `claim_id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT;
+  MODIFY `claim_id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
 
 --
 -- AUTO_INCREMENT for table `customer_type`
@@ -579,13 +592,13 @@ ALTER TABLE `medical_insurances`
 -- AUTO_INCREMENT for table `medical_records`
 --
 ALTER TABLE `medical_records`
-  MODIFY `record_id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
+  MODIFY `record_id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=9;
 
 --
 -- AUTO_INCREMENT for table `patients`
 --
 ALTER TABLE `patients`
-  MODIFY `patient_id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=20;
+  MODIFY `patient_id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=22;
 
 --
 -- AUTO_INCREMENT for table `users`
