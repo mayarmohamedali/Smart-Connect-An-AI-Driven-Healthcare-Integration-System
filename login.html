@@ -157,6 +157,7 @@
         let valid = true;
         const role = document.getElementById("role").value;
 
+        // UI-only name validation (not used in DB check now)
         const nameVal = document.getElementById("fullName").value.trim();
         if (!/^[A-Za-z\s]{3,}$/.test(nameVal)) {
             showError("fullName", "nameError");
@@ -176,6 +177,8 @@
                 showError("phone", "phoneError");
                 valid = false;
             }
+            if (!/^[0-9]{14}$/.test(nid)) { showError("nationalId", "nidError"); valid = false; }
+            if (!/^(010|011|012|015)[0-9]{8}$/.test(ph)) { showError("phone", "phoneError"); valid = false; }
 
             if (!valid) return;
 
@@ -219,6 +222,8 @@
                 showError("password", "passwordError");
                 valid = false;
             }
+            if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mail)) { showError("email", "emailError"); valid = false; }
+            if (pass.length < 6) { showError("password", "passwordError"); valid = false; }
 
             if (!valid) return;
 
@@ -233,6 +238,11 @@
                         password: pass,
                         portal: role
                     })
+      
+                const res = await fetch("staff_login.php", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ email: mail, password: pass, portal: role })
                 });
 
                 const data = await res.json();
@@ -242,25 +252,14 @@
                     return;
                 }
 
-                if (role === "insurance" && !data.policy_completed) {
-                    window.location.href = "policy.php";
-                    return;
-                }
+                // Insurance first-time setup
+               if (role === "insurance") {
+    if (!data.policy_completed) {
+        window.location.href = "policy.php";
+        return;
+    }
+}
 
-                if (role === "admin") {
-                    window.location.href = data.redirect || "AdminDashboard.php";
-                    return;
-                }
-
-                if (role === "hospital") {
-                    window.location.href = data.redirect || "HospitalDashboard.php";
-                    return;
-                }
-
-                if (role === "insurance") {
-                    window.location.href = data.redirect || "InsuranceDashboard.php";
-                    return;
-                }
 
                 window.location.href = data.redirect || "landing_page.html";
 
