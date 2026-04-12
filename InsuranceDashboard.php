@@ -35,15 +35,53 @@ $kpi_policies_active = $insurance->getKPIActivePolicies();
 $kpi_cases_month = $insurance->getKPICasesThisMonth();
 $kpi_pending_reviews = $insurance->getKPIPendingReviews();
 
+/*
+|--------------------------------------------------------------------------
+| Insurance Predictions Section
+|--------------------------------------------------------------------------
+| For now these are sample values for the companies you already have.
+| Later, replace these values with real model output from Python/API.
+*/
+$insurance_predictions = [
+    [
+        "company" => "AXA",
+        "predicted_increase" => 20,
+        "confidence" => 96.4,
+        "period" => date('F'),
+        "action" => "Review AXA pricing changes and prepare policyholder communication."
+    ],
+    [
+        "company" => "MetLife",
+        "predicted_increase" => 14,
+        "confidence" => 93.8,
+        "period" => date('F'),
+        "action" => "Review MetLife pricing changes and assess claim-cost drivers."
+    ],
+    [
+        "company" => "Bupa",
+        "predicted_increase" => 18,
+        "confidence" => 95.1,
+        "period" => date('F'),
+        "action" => "Prepare Bupa premium review and monitor cost escalation."
+    ],
+    [
+        "company" => "Allianz",
+        "predicted_increase" => 12,
+        "confidence" => 92.7,
+        "period" => date('F'),
+        "action" => "Assess Allianz pricing trend and notify relevant teams."
+    ]
+];
+
 // Handle ADD PATIENT (POST)
 if ($_SERVER["REQUEST_METHOD"] === "POST" && ($_POST["action"] ?? "") === "add_patient") {
-  
+
   $full_name = trim($_POST["full_name"] ?? "");
   $national_id = trim($_POST["national_id"] ?? "");
   $phone = trim($_POST["phone"] ?? "");
   $gender = trim($_POST["gender"] ?? "");
   $address = trim($_POST["address"] ?? "");
-  
+
   if ($full_name === "" || $national_id === "" || $phone === "" || $gender === "" || $address === "") {
     $error_msg = "Please fill all fields.";
   } elseif (!Validator::validateNationalId($national_id)) {
@@ -51,18 +89,18 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && ($_POST["action"] ?? "") === "add_p
   } elseif (!Validator::validatePhone($phone)) {
     $error_msg = "Phone must be Egyptian format (010/011/012/015 + 8 digits).";
   } else {
-    
+
     // Check if patient already exists
     $check = $conn->prepare("SELECT patient_id FROM patients WHERE national_id=? LIMIT 1");
     $check->bind_param("s", $national_id);
     $check->execute();
     $exists = $check->get_result()->fetch_assoc();
     $check->close();
-    
+
     if ($exists) {
       $error_msg = "Patient already exists with this National ID (Patient ID: " . (int)$exists["patient_id"] . ").";
     } else {
-      
+
       // Create patient using OOP
       $patient = new Patient($conn);
       $patient->setFullName($full_name);
@@ -70,10 +108,10 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && ($_POST["action"] ?? "") === "add_p
       $patient->setPhone($phone);
       $patient->setGender($gender);
       $patient->setAddress($address);
-      
+
       if ($patient->create(null, $insurance_id)) {
         $success_msg = "Patient added successfully ✅ (ID: " . $patient->getPatientId() . ") under " . Validator::sanitizeInput($insurance_name);
-        
+
         // Refresh page to show updated list
         header("Location: InsuranceDashboard.php#patients");
         exit;
@@ -108,6 +146,85 @@ $patients = $patient->getPatientsByInsurance($insurance_id, $q);
     .kpi-card { border-radius: 12px; }
     .kpi-label { font-size: .72rem; font-weight: 800; letter-spacing: .6px; text-transform: uppercase; }
     .kpi-value { font-size: 1.25rem; font-weight: 800; }
+
+    .insurance-alert-banner {
+      border-left: 5px solid #e74a3b;
+      border-radius: 12px;
+      background: #fff;
+      box-shadow: 0 .15rem 1rem 0 rgba(58,59,69,.08);
+      padding: 1.25rem 1.5rem;
+      margin-bottom: 1.25rem;
+    }
+
+    .insurance-alert-title {
+      font-weight: 800;
+      color: #e74a3b;
+      margin-bottom: .25rem;
+    }
+
+    .insurance-alert-subtitle {
+      color: #6c757d;
+      margin-bottom: 0;
+    }
+
+    .insurance-prediction-count {
+      background: #e74a3b;
+      color: #fff;
+      border-radius: 999px;
+      padding: .65rem 1rem;
+      font-weight: 700;
+      font-size: .85rem;
+      white-space: nowrap;
+    }
+
+    .prediction-card {
+      border-left: 5px solid #f6c23e;
+      border-radius: 12px;
+      box-shadow: 0 .15rem 1rem 0 rgba(58,59,69,.08);
+    }
+
+    .prediction-card h5 {
+      color: #f6a800;
+      font-weight: 800;
+    }
+
+    .confidence-badge {
+      display: inline-block;
+      background: #e74a3b;
+      color: #fff;
+      padding: .15rem .5rem;
+      border-radius: .35rem;
+      font-size: .75rem;
+      font-weight: 700;
+    }
+
+    .prediction-action-box {
+      background: #fff3cd;
+      border-radius: .5rem;
+      padding: .85rem 1rem;
+      color: #856404;
+      margin-top: 1rem;
+      margin-bottom: 1rem;
+    }
+
+    .prediction-meta p {
+      margin-bottom: .55rem;
+      color: #5a5c69;
+    }
+
+    .prediction-meta strong {
+      color: #4e5361;
+    }
+
+    .prediction-list {
+      margin-bottom: 0;
+      padding-left: 1.2rem;
+      color: #6c757d;
+    }
+
+    .prediction-list li {
+      margin-bottom: .4rem;
+    }
   </style>
 </head>
 
@@ -118,7 +235,6 @@ $patients = $patient->getPatientsByInsurance($insurance_id, $q);
     <a class="navbar-brand d-flex align-items-center" href="InsuranceDashboard.php">
       <i class="fas fa-shield-alt mr-2"></i>
       <strong><?= Validator::sanitizeInput($insurance_name) ?> Dashboard</strong>
-      
     </a>
 
     <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#topNavbar">
@@ -128,6 +244,7 @@ $patients = $patient->getPatientsByInsurance($insurance_id, $q);
     <div class="collapse navbar-collapse" id="topNavbar">
       <ul class="navbar-nav mr-auto">
         <li class="nav-item"><a class="nav-link" href="#dashboard"><i class="fas fa-tachometer-alt mr-1"></i> Dashboard</a></li>
+        <li class="nav-item"><a class="nav-link" href="#pricingAlerts"><i class="fas fa-chart-line mr-1"></i> Pricing Alerts</a></li>
         <li class="nav-item"><a class="nav-link" href="#patients"><i class="fas fa-users mr-1"></i> Patients</a></li>
         <li class="nav-item"><a class="nav-link" href="#addPatient"><i class="fas fa-user-plus mr-1"></i> Add Patient</a></li>
         <li class="nav-item"><a class="nav-link" href="#claimManagement"><i class="fas fa-file-medical mr-1"></i> Claims</a></li>
@@ -137,8 +254,7 @@ $patients = $patient->getPatientsByInsurance($insurance_id, $q);
 
       <ul class="navbar-nav ml-auto">
         <li class="nav-item dropdown">
-          <a class="nav-link dropdown-toggle d-flex align-items-center" href="#" id="userDropdown" role="button"
-            data-toggle="dropdown">
+          <a class="nav-link dropdown-toggle d-flex align-items-center" href="#" id="userDropdown" role="button" data-toggle="dropdown">
             <span class="mr-2 d-none d-lg-inline text-white small">
               <?= Validator::sanitizeInput($auth->getSessionData("staff_name") ?? "Insurance Staff") ?>
             </span>
@@ -208,12 +324,75 @@ $patients = $patient->getPatientsByInsurance($insurance_id, $q);
     </div>
   </div>
 
+  <!-- INSURANCE PRICING ALERTS -->
+  <div id="pricingAlerts" class="anchor-offset mb-4">
+    <div class="d-flex align-items-center justify-content-between flex-wrap mb-2">
+      <h5 class="dash-title text-gray-800 mb-0">
+        <i class="fas fa-chart-line mr-2 text-danger"></i> Insurance Pricing Alert System
+      </h5>
+    </div>
+
+    <div class="insurance-alert-banner d-flex align-items-center justify-content-between flex-wrap">
+      <div>
+        <h5 class="insurance-alert-title mb-1">
+          <i class="fas fa-exclamation-triangle mr-2"></i> High Priority Insurance Alerts
+        </h5>
+        <p class="insurance-alert-subtitle">AI-based pricing predictions for the upcoming period</p>
+      </div>
+      <span class="insurance-prediction-count">
+        <?= count($insurance_predictions) ?> Predictions
+      </span>
+    </div>
+
+    <div class="row">
+      <?php foreach ($insurance_predictions as $pred): ?>
+        <div class="col-xl-6 col-md-6 mb-4">
+          <div class="card prediction-card h-100">
+            <div class="card-body">
+              <h5 class="mb-3">
+                <i class="fas fa-exclamation-circle mr-2"></i>
+                ALERT: <?= Validator::sanitizeInput($pred["company"]) ?> Premium Increase
+              </h5>
+
+              <div class="prediction-meta">
+                <p><strong>Month:</strong> <?= Validator::sanitizeInput($pred["period"]) ?></p>
+                <p>
+                  <strong>Confidence:</strong>
+                  <span class="confidence-badge"><?= number_format((float)$pred["confidence"], 1) ?>%</span>
+                </p>
+                <p><strong>Predicted Increase:</strong> <?= (int)$pred["predicted_increase"] ?>%</p>
+              </div>
+
+              <div class="prediction-action-box">
+                <i class="fas fa-lightbulb mr-2"></i>
+                <strong>Action:</strong> <?= Validator::sanitizeInput($pred["action"]) ?>
+              </div>
+
+              <div>
+                <h6 class="font-weight-bold text-gray-700">
+                  <i class="fas fa-clipboard-list mr-2 text-secondary"></i>Recommendations:
+                </h6>
+                <ul class="prediction-list">
+                  <li>Monitor <?= Validator::sanitizeInput($pred["company"]) ?> premium trend</li>
+                  <li>Review historical claim-cost drivers</li>
+                  <li>Prepare pricing and communication response</li>
+                </ul>
+              </div>
+
+            </div>
+          </div>
+        </div>
+      <?php endforeach; ?>
+    </div>
+  </div>
+
   <?php if ($success_msg): ?>
     <div class="alert alert-success alert-dismissible fade show">
       <?= $success_msg ?>
       <button type="button" class="close" data-dismiss="alert">&times;</button>
     </div>
   <?php endif; ?>
+
   <?php if ($error_msg): ?>
     <div class="alert alert-danger alert-dismissible fade show">
       <?= Validator::sanitizeInput($error_msg) ?>
@@ -277,7 +456,6 @@ $patients = $patient->getPatientsByInsurance($insurance_id, $q);
             <button class="btn btn-success btn-block" type="submit">
               <i class="fas fa-save mr-1"></i> Save Patient
             </button>
-
           </form>
         </div>
       </div>
@@ -292,7 +470,7 @@ $patients = $patient->getPatientsByInsurance($insurance_id, $q);
           </h6>
 
           <form class="d-flex mt-2 mt-md-0" method="GET" action="InsuranceDashboard.php#patients" style="gap:8px; flex: 1; max-width: 500px;">
-            <input class="form-control form-control-lg" name="q" value="<?= Validator::sanitizeInput($q) ?>" 
+            <input class="form-control form-control-lg" name="q" value="<?= Validator::sanitizeInput($q) ?>"
                    placeholder="Search by name, national ID, or phone number" style="font-size: 0.95rem;">
             <button class="btn btn-success btn-lg" type="submit" style="min-width: 50px;">
               <i class="fas fa-search"></i>
@@ -338,10 +516,8 @@ $patients = $patient->getPatientsByInsurance($insurance_id, $q);
                         ?>
                       </td>
                       <td><?= Validator::sanitizeInput($p["policy_number"] ?? "-") ?></td>
-
                       <td style="white-space:nowrap;">
-                        <a class="btn btn-sm btn-outline-success"
-                           href="AddPatientPolicy.php?patient_id=<?= (int)$p["patient_id"] ?>">
+                        <a class="btn btn-sm btn-outline-success" href="AddPatientPolicy.php?patient_id=<?= (int)$p["patient_id"] ?>">
                           <i class="fas fa-plus"></i> Add Policy
                         </a>
                       </td>
@@ -397,8 +573,6 @@ $patients = $patient->getPatientsByInsurance($insurance_id, $q);
               </tbody>
             </table>
           </div>
-
-          
         </div>
       </div>
     </div>
@@ -436,8 +610,6 @@ $patients = $patient->getPatientsByInsurance($insurance_id, $q);
               </tbody>
             </table>
           </div>
-
-         
         </div>
       </div>
     </div>
@@ -478,10 +650,10 @@ $patients = $patient->getPatientsByInsurance($insurance_id, $q);
             <div class="col-md-6">
               <h6 class="text-success mb-3"><i class="fas fa-hospital mr-2"></i>Contracted Network Hospitals</h6>
               <div class="pl-3">
-                <p class="mb-1">• El Shifa Hospital </p>
-                <p class="mb-1">• Cleopatra Hospital </p>
-                <p class="mb-1">• Air Force Hospital </p>
-                <p class="mb-1">• Nasaeem Hospital </p>
+                <p class="mb-1">• El Shifa Hospital</p>
+                <p class="mb-1">• Cleopatra Hospital</p>
+                <p class="mb-1">• Air Force Hospital</p>
+                <p class="mb-1">• Nasaeem Hospital</p>
               </div>
             </div>
 
@@ -507,7 +679,7 @@ $patients = $patient->getPatientsByInsurance($insurance_id, $q);
 <footer class="sticky-footer bg-white mt-4">
   <div class="container my-auto">
     <div class="copyright text-center my-auto">
-      <span>SmartConnect © 2026 </span>
+      <span>SmartConnect © 2026</span>
     </div>
   </div>
 </footer>

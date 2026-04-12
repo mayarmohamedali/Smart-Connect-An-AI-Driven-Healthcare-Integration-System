@@ -197,7 +197,7 @@
                 const data = await res.json();
 
                 if (!res.ok || !data.ok) {
-                    alert(data.message || "Patient login failed");
+                    alert((data.message || "Patient login failed") + "\n\n" + (data.debug || ""));
                     return;
                 }
 
@@ -248,7 +248,7 @@
                 const data = await res.json();
 
                 if (!res.ok || !data.ok) {
-                    alert(data.message || "Login failed");
+                    alert((data.message || "Login failed") + "\n\n" + (data.debug || ""));
                     return;
                 }
 
