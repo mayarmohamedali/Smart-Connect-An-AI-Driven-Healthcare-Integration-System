@@ -1,0 +1,23 @@
+[
+  "Age",
+  "Gender",
+  "BMI",
+  "Blood_Pressure",
+  "Cholesterol_Level",
+  "Glucose_Level",
+  "Smoking_Status",
+  "Physical_Activity",
+  "Diet_Quality",
+  "Alcohol_Consumption",
+  "Sleep_Hours",
+  "Stress_Level",
+  "Family_History",
+  "Medications_Count",
+  "Fever",
+  "Cough",
+  "Fatigue",
+  "Chest_Pain",
+  "Shortness_of_Breath",
+  "Headache",
+  "Month"
+]
