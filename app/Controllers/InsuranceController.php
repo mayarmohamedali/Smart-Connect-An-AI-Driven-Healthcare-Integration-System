@@ -1,6 +1,7 @@
 <?php
 require_once ROOT . '/app/models/InsurancePlan.php';
-require_once ROOT . '/app/models/PolicyAutoSetup.php';
+require_once ROOT . '/app/views/insurance/PolicyAutoSetup.php';
+
 
 class InsuranceController {
 
@@ -181,7 +182,11 @@ class InsuranceController {
 
         $existing_plan     = $insurancePlanObj->getPlanByType($insurance_id, $category_id, $customer_type_id);
         $is_editing        = !empty($existing_plan);
-        $existing_services = $is_editing ? $insurancePlanObj->getServicesByPlanId($existing_plan['plan_id']) : [];
+       $existing_services = [];
+
+if ($is_editing && !empty($existing_plan['plan_id'])) {
+    $existing_services = $insurancePlanObj->getServicesByPlanId((int)$existing_plan['plan_id']);
+}
 
         // Index service_data by service_id for easy lookup in view
         $service_data = [];

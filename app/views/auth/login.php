@@ -479,9 +479,9 @@
                 }
 
                 // Insurance first-time setup
-               if (role === "insurance") {
+ if (role === "insurance") {
     if (!data.policy_completed) {
-        window.location.href = "policy.php";
+        window.location.href = "<?= BASE_URL ?>/insurance/policy";
         return;
     }
 }
