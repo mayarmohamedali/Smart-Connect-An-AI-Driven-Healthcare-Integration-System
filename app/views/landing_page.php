@@ -4,23 +4,21 @@
   <title>Smart-Connect | Healthcare Simplified</title>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  
-<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=Plus+Jakarta+Sans:wght@700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
-<!-- Your CSS must be last -->
-<link rel="stylesheet" href="style.css">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=Plus+Jakarta+Sans:wght@700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
-
+  <!-- Landing page styles — must be last -->
+  <link rel="stylesheet" href="<?php echo BASE_URL; ?>/assets/css/style.css">
 </head>
 <body id="myPage">
 
+<!-- ═══════════════════════════ NAVBAR ═══════════════════════════ -->
 <nav class="navbar navbar-expand-lg navbar-dark fixed-top">
   <div class="container">
-    <a class="navbar-brand d-flex align-items-center" href="#">
-      <img src="logo-landing.jpg" class="nav-logo me-2" alt="Smart-Connect Logo">
-
+    <a class="navbar-brand d-flex align-items-center" href="<?php echo BASE_URL; ?>/">
+      <img src="<?php echo BASE_URL; ?>/assets/images/logo-landing.jpg" class="nav-logo me-2" alt="Smart-Connect Logo">
       <span>Smart Connect</span>
     </a>
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
@@ -33,26 +31,34 @@
         <li class="nav-item"><a class="nav-link mx-2" href="#about">ABOUT US</a></li>
         <li class="nav-item"><a class="nav-link mx-2" href="#contact">CONTACT</a></li>
         <li class="nav-item">
-          <a class="btn btn-outline-light ms-lg-3 rounded-pill px-4" href="login.html">LOGIN</a>
+          <a class="btn btn-outline-light ms-lg-3 rounded-pill px-4"
+             href="<?php echo BASE_URL; ?>/?url=auth/login">LOGIN</a>
         </li>
       </ul>
     </div>
   </div>
 </nav>
 
+<!-- ═══════════════════════════ HERO ═══════════════════════════ -->
 <header class="hero text-center">
   <div class="container">
-    <h1 class="display-3 mb-4">Your Healthcare,<br><span style="color: var(--accent-green)">Unified in One Place</span></h1>
-    <p class="lead mb-5 opacity-75">Track insurance claims and medical history with the security you deserve.</p>
+    <h1 class="display-3 mb-4">
+      Your Healthcare,<br>
+      <span style="color: var(--accent-green)">Unified in One Place</span>
+    </h1>
+    <p class="lead mb-5 opacity-75">
+      Track insurance claims and medical history with the security you deserve.
+    </p>
     <div class="d-flex justify-content-center gap-3">
-      <button class="btn btn-main btn-lg" onclick="window.location.href='login.html'">
-    Get Started Now
-</button>
-    
+      <button class="btn btn-main btn-lg"
+              onclick="window.location.href='<?php echo BASE_URL; ?>/?url=auth/login'">
+        Get Started Now
+      </button>
     </div>
   </div>
 </header>
 
+<!-- ═══════════════════════════ HOW IT WORKS ═══════════════════════════ -->
 <section id="how-it-works" class="container py-5 my-5">
   <div class="text-center mb-5 reveal">
     <h2>How It Works</h2>
@@ -83,6 +89,7 @@
   </div>
 </section>
 
+<!-- ═══════════════════════════ FEATURES ═══════════════════════════ -->
 <section id="services" class="bg-light py-5">
   <div class="container py-5">
     <div class="text-center mb-5 reveal">
@@ -115,11 +122,15 @@
   </div>
 </section>
 
+<!-- ═══════════════════════════ ABOUT ═══════════════════════════ -->
 <section id="about" class="container py-5 my-5">
   <div class="row align-items-center">
     <div class="col-lg-6 reveal">
       <h2 class="display-5 mb-4">Digitizing Healthcare in Egypt</h2>
-      <p class="text-muted mb-4">Smart-Connect is more than an app; it's a bridge between patients, doctors, and insurance companies. We are dedicated to removing paperwork and confusion from the Egyptian healthcare system.</p>
+      <p class="text-muted mb-4">
+        Smart-Connect is more than an app; it's a bridge between patients, doctors, and insurance
+        companies. We are dedicated to removing paperwork and confusion from the Egyptian healthcare system.
+      </p>
       <ul class="list-unstyled">
         <li class="mb-2"><i class="fas fa-check-circle text-success me-2"></i> Real-time Claim Tracking</li>
         <li class="mb-2"><i class="fas fa-check-circle text-success me-2"></i> Digital Medical Records</li>
@@ -127,11 +138,15 @@
       </ul>
     </div>
     <div class="col-lg-6 text-center reveal">
-      <img src="healthcare.png" alt="Healthcare Illustration" class="img-fluid" style="max-height: 400px;">
+      <img src="<?php echo BASE_URL; ?>/assets/images/healthcare.png"
+           alt="Healthcare Illustration"
+           class="img-fluid"
+           style="max-height: 400px;">
     </div>
   </div>
 </section>
 
+<!-- ═══════════════════════════ CONTACT ═══════════════════════════ -->
 <section id="contact" class="bg-light py-5">
   <div class="container py-5">
     <div class="row justify-content-center">
@@ -160,6 +175,7 @@
   </div>
 </section>
 
+<!-- ═══════════════════════════ FOOTER ═══════════════════════════ -->
 <footer class="text-center">
   <div class="container">
     <h3 class="text-white mb-4">Smart-Connect</h3>
@@ -173,6 +189,7 @@
   </div>
 </footer>
 
+<!-- ═══════════════════════════ SCRIPTS ═══════════════════════════ -->
 <script>
   function reveal() {
     var reveals = document.querySelectorAll(".reveal");

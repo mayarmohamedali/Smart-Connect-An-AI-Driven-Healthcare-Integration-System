@@ -3,7 +3,7 @@
 class App {
 
     public function __construct() {
-        $url = $_GET['url'] ?? 'auth/login';
+        $url = $_GET['url'] ?? 'landing/index';
         $url = explode('/', trim($url, '/'));
 
         $controllerName = ucfirst($url[0]) . 'Controller';

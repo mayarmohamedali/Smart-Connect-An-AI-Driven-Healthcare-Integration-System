@@ -381,16 +381,20 @@ function e($v): string { return htmlspecialchars((string)($v??''), ENT_QUOTES, '
           <div class="col-md-6 form-group">
             <label>Disease Category</label>
             <select name="disease_category" class="form-control">
-              <option value="">— Select Category —</option>
-              <option value="Cardiovascular">Cardiovascular</option>
-              <option value="Oncological">Oncological</option>
-              <option value="Metabolic">Metabolic</option>
-              <option value="Respiratory">Respiratory</option>
-              <option value="Renal">Renal</option>
-              <option value="Neurological">Neurological</option>
-              <option value="Healthy">Healthy</option>
-              <option value="Other">Other</option>
-            </select>
+  <option value="">— Select Disease —</option>
+
+  <option value="Cancer">Cancer</option>
+  <option value="Diabetes">Diabetes</option>
+  <option value="Hypertension">Hypertension</option>
+  <option value="Pneumonia">Pneumonia</option>
+  <option value="Coronary Artery Disease">Coronary Artery Disease</option>
+  <option value="Heart Failure">Heart Failure</option>
+  <option value="Chronic Kidney Disease">Chronic Kidney Disease</option>
+  <option value="Asthma">Asthma</option>
+  <option value="Stroke">Stroke</option>
+  <option value="Healthy">Healthy</option>
+  <option value="Healthy">Other</option>
+</select>
           </div>
         </div>
 
