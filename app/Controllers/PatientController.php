@@ -2,6 +2,61 @@
 
 class PatientController {
 
+    // ── Private: call Flask prediction API ──────────────────────────────────
+    private function callFlaskPrediction(int $patient_id): array {
+        $url = 'http://127.0.0.1:5000/predict/patient/' . $patient_id;
+
+        $ch = curl_init($url);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 5);
+
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curlErr  = curl_error($ch);
+        curl_close($ch);
+
+        if ($response === false || $httpCode >= 400) {
+            return [
+                'ok'      => false,
+                'message' => $curlErr ?: 'Flask API request failed (HTTP ' . $httpCode . ')',
+            ];
+        }
+
+        $data = json_decode($response, true);
+        if (!is_array($data)) {
+            return ['ok' => false, 'message' => 'Invalid JSON from Flask API'];
+        }
+
+        return $data;
+    }
+
+    // ── Private: derive risk level from prediction result ────────────────────
+    private function deriveRiskLevel(array $ai): string {
+        if (!empty($ai['risk_level'])) {
+            return strtoupper((string)$ai['risk_level']);
+        }
+
+        $disease = strtolower(trim((string)($ai['predicted_disease'] ?? '')));
+        $alerts  = $ai['active_alerts'] ?? [];
+        $count   = is_array($alerts) ? count($alerts) : 0;
+
+        if (in_array($disease, ['heart disease', 'kidney disease'], true)) return 'HIGH';
+        if (in_array($disease, ['diabetes mellitus', 'diabetes', 'hypertension'], true)) {
+            return $count >= 2 ? 'HIGH' : 'MODERATE';
+        }
+        if ($count >= 3) return 'HIGH';
+        if ($count >= 1) return 'MODERATE';
+        return 'LOW';
+    }
+
+    // ── Private: map risk level to CSS class ─────────────────────────────────
+    private function riskBadgeClass(string $riskLevel): string {
+        $riskLevel = strtoupper($riskLevel);
+        if ($riskLevel === 'HIGH')     return 'risk-level-high';
+        if ($riskLevel === 'MODERATE') return 'risk-level-moderate';
+        return 'risk-level-low';
+    }
+
     // ── GET /patient/dashboard ───────────────────────────────────────────────
     public function dashboard(): void {
         $db   = new Database();
@@ -22,7 +77,9 @@ class PatientController {
         $dob           = $patientObj->getDOBFromNationalId();
         $age           = $patientObj->getAge();
         $insuranceName = $patientObj->getInsuranceName();
-        if (!$insuranceName && $patientObj->getInsuranceId()) $insuranceName = '#' . $patientObj->getInsuranceId();
+        if (!$insuranceName && $patientObj->getInsuranceId()) {
+            $insuranceName = '#' . $patientObj->getInsuranceId();
+        }
 
         $policyObj  = new PatientPolicy($conn);
         $policyData = $policyObj->loadByPatientId($patient_id) ?? [];
@@ -35,8 +92,21 @@ class PatientController {
         $claimStatus = $_GET['claim'] ?? '';
         $claimMsg    = $_GET['msg']   ?? '';
 
+        // ── Flask AI prediction ──────────────────────────────────────────────
+        $aiPrediction     = $this->callFlaskPrediction($patient_id);
+        $riskLevel        = !empty($aiPrediction['ok'])
+                                ? $this->deriveRiskLevel($aiPrediction)
+                                : 'LOW';
+        $riskClass        = $this->riskBadgeClass($riskLevel);
+        $predictedDisease = $aiPrediction['predicted_disease']    ?? 'No prediction';
+        $diseaseCategory  = $aiPrediction['disease_category']     ?? 'General';
+        $activeAlerts     = is_array($aiPrediction['active_alerts']     ?? null) ? $aiPrediction['active_alerts']     : [];
+        $shortMeasures    = is_array($aiPrediction['short_term_measures'] ?? null) ? $aiPrediction['short_term_measures'] : [];
+        $longMeasures     = is_array($aiPrediction['long_term_measures']  ?? null) ? $aiPrediction['long_term_measures']  : [];
+        // ────────────────────────────────────────────────────────────────────
+
         require_once ROOT . '/app/views/patient/dashboard.php';
-       
+        $db->close();
     }
 
     // ── GET /patient/viewRecord ──────────────────────────────────────────────
@@ -131,6 +201,6 @@ class PatientController {
         if ($stmt->execute()) { $stmt->close(); $redirect('success'); }
         else { $err = $stmt->error; $stmt->close(); $redirect('error', 'Database error: ' . $err); }
 
-        
+        $db->close();
     }
 }

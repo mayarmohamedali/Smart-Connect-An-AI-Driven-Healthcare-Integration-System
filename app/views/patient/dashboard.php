@@ -3,6 +3,10 @@
 // $patientObj (Patient), $dob, $age, $insuranceName
 // $policyData (array), $records (array), $latest, $kpi_records
 // $claimStatus, $claimMsg
+// --- Flask AI variables ---
+// $aiPrediction (array), $riskLevel (string), $riskClass (string)
+// $predictedDisease, $diseaseCategory
+// $activeAlerts (array), $shortMeasures (array), $longMeasures (array)
 function e($v): string { return htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8'); }
 function rec_get($rec, string $key, $default = null) {
     if (is_array($rec))  return $rec[$key]  ?? $default;
@@ -23,35 +27,100 @@ function rec_get($rec, string $key, $default = null) {
   <style>
     .anchor-offset { scroll-margin-top: 90px; }
     .badge-soft { border: 1px solid rgba(0,0,0,.08); }
-    .prediction-card { background: linear-gradient(135deg,#667eea 0%,#764ba2 100%); color:#fff; border-radius:10px; padding:20px; margin-bottom:20px; }
-    .prediction-header { font-size:1.3rem; font-weight:bold; margin-bottom:10px; }
-    .confidence-badge  { background:rgba(255,255,255,0.2); padding:8px 15px; border-radius:20px; font-weight:bold; display:inline-block; margin:5px 0; }
-    .risk-level-high   { background:#dc3545; color:#fff; padding:5px 12px; border-radius:15px; font-weight:bold; font-size:.85rem; display:inline-block; }
-    .timeline-badge    { background:rgba(255,255,255,0.15); padding:5px 10px; border-radius:12px; font-size:.9rem; display:inline-block; }
-    .risk-predictions-list { background:rgba(255,255,255,0.1); border-radius:8px; padding:15px; margin-top:15px; }
-    .risk-item         { padding:8px 0; border-bottom:1px solid rgba(255,255,255,0.1); }
-    .risk-item:last-child { border-bottom:none; }
-    .risk-percentage   { font-weight:bold; font-size:1.1rem; color:#ffd700; }
-    .risk-factors-section { background:#fff3cd; color:#856404; border-left:4px solid #ffc107; padding:15px; border-radius:5px; margin:15px 0; }
-    .recommendations-section { background:#fff; border-radius:8px; padding:20px; box-shadow:0 2px 4px rgba(0,0,0,.1); }
-    .recommendation-item { padding:6px 0; font-size:.95rem; }
-    /* Claim */
-    .claim-hero { background:linear-gradient(135deg,#06b6d4 0%,#6366f1 55%,#a855f7 100%); color:#fff; border-radius:16px; padding:18px; position:relative; overflow:hidden; box-shadow:0 14px 28px rgba(99,102,241,.18); }
-    .claim-hero:before { content:""; position:absolute; right:-60px; top:-60px; width:220px; height:220px; background:radial-gradient(circle,rgba(255,255,255,.28),transparent 60%); }
-    .hero-badge { background:rgba(255,255,255,.18); border:1px solid rgba(255,255,255,.22); padding:6px 12px; border-radius:999px; font-weight:800; display:inline-flex; align-items:center; gap:8px; }
+
+    /* ── AI prediction card ── */
+    .prediction-card {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border-radius: 10px;
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+    .prediction-header { font-size: 1.3rem; font-weight: bold; margin-bottom: 10px; }
+    .timeline-badge {
+      background: rgba(255,255,255,0.15);
+      padding: 5px 10px;
+      border-radius: 12px;
+      font-size: .9rem;
+      display: inline-block;
+    }
+    .risk-level-high,
+    .risk-level-moderate,
+    .risk-level-low {
+      color: white;
+      padding: 5px 12px;
+      border-radius: 15px;
+      font-weight: bold;
+      font-size: .85rem;
+      display: inline-block;
+    }
+    .risk-level-high     { background: #dc3545; }
+    .risk-level-moderate { background: #f59e0b; }
+    .risk-level-low      { background: #22c55e; }
+
+    .risk-factors-section {
+      background: #fff3cd;
+      color: #856404;
+      border-left: 4px solid #ffc107;
+      padding: 15px;
+      border-radius: 5px;
+      margin: 15px 0;
+    }
+    .recommendations-section {
+      background: white;
+      border-radius: 8px;
+      padding: 20px;
+      box-shadow: 0 2px 4px rgba(0,0,0,.1);
+    }
+    .recommendation-item { padding: 6px 0; font-size: .95rem; }
+
+    /* ── Claim form ── */
+    .claim-hero {
+      background: linear-gradient(135deg,#06b6d4 0%,#6366f1 55%,#a855f7 100%);
+      color:#fff; border-radius:16px; padding:18px; position:relative;
+      overflow:hidden; box-shadow:0 14px 28px rgba(99,102,241,.18);
+    }
+    .claim-hero:before {
+      content:""; position:absolute; right:-60px; top:-60px;
+      width:220px; height:220px;
+      background:radial-gradient(circle,rgba(255,255,255,.28),transparent 60%);
+    }
+    .hero-badge {
+      background:rgba(255,255,255,.18); border:1px solid rgba(255,255,255,.22);
+      padding:6px 12px; border-radius:999px; font-weight:800;
+      display:inline-flex; align-items:center; gap:8px;
+    }
     .claim-card { border-radius:16px; border:0; overflow:hidden; box-shadow:0 12px 30px rgba(0,0,0,.08); }
     .claim-section-title { display:flex; align-items:center; gap:10px; font-weight:900; margin:12px 0 10px; }
-    .icon-pill { width:34px; height:34px; border-radius:10px; display:flex; align-items:center; justify-content:center; color:#fff; box-shadow:0 10px 18px rgba(0,0,0,.12); flex:0 0 auto; }
+    .icon-pill {
+      width:34px; height:34px; border-radius:10px; display:flex;
+      align-items:center; justify-content:center; color:#fff;
+      box-shadow:0 10px 18px rgba(0,0,0,.12); flex:0 0 auto;
+    }
     .bg-grad-blue   { background:linear-gradient(135deg,#3b82f6,#6366f1); }
     .bg-grad-orange { background:linear-gradient(135deg,#fb923c,#f59e0b); }
-    .soft-block { border-radius:14px; border:1px solid rgba(0,0,0,.06); background:linear-gradient(180deg,#fff 0%,#f8fafc 100%); padding:14px; }
+    .soft-block {
+      border-radius:14px; border:1px solid rgba(0,0,0,.06);
+      background:linear-gradient(180deg,#fff 0%,#f8fafc 100%); padding:14px;
+    }
     .badge-total { background:linear-gradient(135deg,#22c55e,#16a34a); color:#fff; border:none; }
-    .btn-submit { background:linear-gradient(135deg,#22c55e,#16a34a); border:none; color:#fff; font-weight:800; border-radius:12px; padding:10px 16px; }
+    .btn-submit {
+      background:linear-gradient(135deg,#22c55e,#16a34a); border:none; color:#fff;
+      font-weight:800; border-radius:12px; padding:10px 16px;
+    }
     .btn-submit:hover { opacity:.95; color:#fff; }
-    .btn-ghost { border-radius:12px; padding:10px 16px; font-weight:800; }
-    .rainbow-line { height:4px; border-radius:999px; background:linear-gradient(90deg,#22c55e,#06b6d4,#3b82f6,#a855f7,#ec4899,#f59e0b); opacity:.9; }
+    .btn-ghost  { border-radius:12px; padding:10px 16px; font-weight:800; }
+    .rainbow-line {
+      height:4px; border-radius:999px;
+      background:linear-gradient(90deg,#22c55e,#06b6d4,#3b82f6,#a855f7,#ec4899,#f59e0b); opacity:.9;
+    }
     .form-label-custom { font-weight:800; margin-bottom:6px; }
-    .chip { display:inline-flex; align-items:center; gap:6px; padding:6px 10px; border-radius:999px; border:1px solid rgba(255,255,255,.25); background:rgba(255,255,255,.12); font-weight:800; font-size:.85rem; margin-right:8px; margin-top:8px; }
+    .chip {
+      display:inline-flex; align-items:center; gap:6px; padding:6px 10px;
+      border-radius:999px; border:1px solid rgba(255,255,255,.25);
+      background:rgba(255,255,255,.12); font-weight:800; font-size:.85rem;
+      margin-right:8px; margin-top:8px;
+    }
     .input-group-text { font-weight:900; }
   </style>
 </head>
@@ -93,21 +162,23 @@ function rec_get($rec, string $key, $default = null) {
 
 <div class="container-fluid mt-4">
 
+  <!-- ── Claim feedback alerts ── -->
   <?php if ($claimStatus === 'success'): ?>
-    <div class="alert alert-success alert-dismissible fade show shadow-sm">
+    <div class="alert alert-success alert-dismissible fade show shadow-sm" role="alert">
       <i class="fas fa-check-circle mr-2"></i>
-      <strong>Claim submitted successfully!</strong> Your claim is now <span class="badge badge-warning">Pending</span> review.
+      <strong>Claim submitted successfully!</strong>
+      Your claim is now <span class="badge badge-warning">Pending</span> review by your insurance provider.
       <button type="button" class="close" data-dismiss="alert">&times;</button>
     </div>
   <?php elseif ($claimStatus === 'error'): ?>
-    <div class="alert alert-danger alert-dismissible fade show shadow-sm">
+    <div class="alert alert-danger alert-dismissible fade show shadow-sm" role="alert">
       <i class="fas fa-exclamation-circle mr-2"></i>
       <strong>Claim submission failed.</strong> <?= e($claimMsg) ?>
       <button type="button" class="close" data-dismiss="alert">&times;</button>
     </div>
   <?php endif; ?>
 
-  <!-- PROFILE -->
+  <!-- ── PROFILE ── -->
   <div id="profile" class="anchor-offset"></div>
   <div class="card shadow mb-4">
     <div class="card-header font-weight-bold">👤 Profile</div>
@@ -138,7 +209,7 @@ function rec_get($rec, string $key, $default = null) {
     </div>
   </div>
 
-  <!-- MEDICAL SUMMARY -->
+  <!-- ── MEDICAL SUMMARY ── -->
   <div id="medical" class="anchor-offset"></div>
   <div class="card shadow mb-4">
     <div class="card-header font-weight-bold">🩺 Medical</div>
@@ -155,7 +226,7 @@ function rec_get($rec, string $key, $default = null) {
     </div>
   </div>
 
-  <!-- MEDICAL RECORDS TABLE -->
+  <!-- ── MEDICAL RECORDS TABLE ── -->
   <div class="card shadow mb-4">
     <div class="card-header font-weight-bold">📁 Medical Records (Latest 20)</div>
     <div class="card-body">
@@ -190,7 +261,7 @@ function rec_get($rec, string $key, $default = null) {
     </div>
   </div>
 
-  <!-- INSURANCE -->
+  <!-- ── INSURANCE ── -->
   <div id="insurance" class="anchor-offset"></div>
   <div class="card shadow mb-4">
     <div class="card-header font-weight-bold">🛡 Insurance Information</div>
@@ -214,65 +285,107 @@ function rec_get($rec, string $key, $default = null) {
     </div>
   </div>
 
-  <!-- AI INSIGHTS -->
+  <!-- ── AI INSIGHTS ── -->
   <div id="ai" class="anchor-offset"></div>
   <div class="card shadow mb-4">
-    <div class="card-header font-weight-bold">🤖 AI Health Insights</div>
+    <div class="card-header font-weight-bold d-flex justify-content-between align-items-center">
+      <span>🤖 AI Health Insights</span>
+      <?php if (!empty($aiPrediction['ok'])): ?>
+        <span class="badge badge-success"><i class="fas fa-circle mr-1"></i> Flask Connected</span>
+      <?php else: ?>
+        <span class="badge badge-danger"><i class="fas fa-circle mr-1"></i> Flask Not Connected</span>
+      <?php endif; ?>
+    </div>
+
     <div class="card-body p-0">
-      <div class="prediction-card">
-        <div class="prediction-header"><i class="fas fa-brain mr-2"></i>Primary Health Prediction</div>
-        <div class="mt-3">
-          <h4 class="mb-2">Diabetes Mellitus</h4>
-          <div class="mb-2">
-            <span class="confidence-badge"><i class="fas fa-chart-line mr-1"></i>Confidence: 74.8%</span>
-            <span class="risk-level-high ml-2"><i class="fas fa-exclamation-triangle mr-1"></i>RISK LEVEL: HIGH</span>
-            <span class="timeline-badge ml-2"><i class="fas fa-clock mr-1"></i>Timeline: 1–3 months</span>
-          </div>
+
+      <?php if (empty($aiPrediction['ok'])): ?>
+        <div class="alert alert-warning m-4 mb-0">
+          <i class="fas fa-exclamation-triangle mr-2"></i>
+          <strong>Flask API not reachable:</strong> <?= e($aiPrediction['message'] ?? 'Unknown error') ?><br>
+          <small class="text-muted">Make sure the Flask server is running: <code>python app.py</code></small>
         </div>
-        <div class="risk-predictions-list">
-          <h6 class="mb-3"><i class="fas fa-list-ol mr-2"></i>Top 3 Risk Predictions</h6>
-          <div class="risk-item"><span class="risk-percentage">74.8%</span><span class="ml-2">— Diabetes Mellitus</span></div>
-          <div class="risk-item"><span class="risk-percentage">11.6%</span><span class="ml-2">— Hypertension</span></div>
-          <div class="risk-item"><span class="risk-percentage">5.1%</span><span class="ml-2">— Heart Disease</span></div>
+      <?php endif; ?>
+
+      <div class="prediction-card">
+        <div class="prediction-header">
+          <i class="fas fa-brain mr-2"></i>Primary Health Prediction
+        </div>
+        <div class="mt-3">
+          <h4 class="mb-2"><?= e($predictedDisease) ?></h4>
+          <div class="mb-2">
+            <span class="<?= e($riskClass) ?>">
+              <i class="fas fa-exclamation-triangle mr-1"></i>RISK LEVEL: <?= e($riskLevel) ?>
+            </span>
+            <span class="timeline-badge ml-2">
+              <i class="fas fa-tag mr-1"></i>Category: <?= e($diseaseCategory) ?>
+            </span>
+          </div>
         </div>
       </div>
+
       <div class="p-4">
+
+        <!-- Active Alerts -->
         <div class="risk-factors-section">
           <h5><i class="fas fa-exclamation-circle mr-2"></i>Active Risk Factors</h5>
-          <div><i class="fas fa-arrow-circle-right mr-2"></i><strong>ELEVATED BLOOD GLUCOSE RISK</strong></div>
-          <div><i class="fas fa-arrow-circle-right mr-2"></i>Check fasting blood sugar &amp; HbA1c within 3 days</div>
-          <div><i class="fas fa-arrow-circle-right mr-2"></i>Family history of diabetes</div>
-          <div><i class="fas fa-arrow-circle-right mr-2"></i>Sedentary lifestyle / overweight</div>
+          <?php if (!empty($activeAlerts)): ?>
+            <?php foreach ($activeAlerts as $alert): ?>
+              <div><i class="fas fa-arrow-circle-right mr-2"></i><?= e($alert) ?></div>
+            <?php endforeach; ?>
+          <?php else: ?>
+            <div><i class="fas fa-check-circle mr-2 text-success"></i>No active alerts detected.</div>
+          <?php endif; ?>
         </div>
+
+        <!-- Recommendations -->
         <div class="recommendations-section mt-4 p-3 rounded shadow-sm bg-light">
-          <h5 class="mb-3"><i class="fas fa-clipboard-check mr-2 text-success"></i>Recommended Preventive Measures 💡</h5>
+          <h5 class="mb-3">
+            <i class="fas fa-clipboard-check mr-2 text-success"></i>
+            Recommended Preventive Measures 💡
+          </h5>
+
           <div class="mb-4">
-            <h6 class="mb-2 text-primary"><i class="fas fa-calendar-alt mr-2"></i> Short-term (Next 3 months) ⏱️</h6>
-            <div class="recommendation-item mb-2">🩸 Monitor fasting blood glucose weekly</div>
-            <div class="recommendation-item mb-2">🍭 Reduce sugar &amp; refined carbs intake</div>
-            <div class="recommendation-item mb-2">🚶‍♂️ Walk 30 minutes daily</div>
-            <div class="recommendation-item mb-2">💧 Maintain hydration</div>
+            <h6 class="mb-2 text-primary">
+              <i class="fas fa-calendar-alt mr-2"></i> Short-term
+            </h6>
+            <?php if (!empty($shortMeasures)): ?>
+              <?php foreach ($shortMeasures as $item): ?>
+                <div class="recommendation-item mb-2">• <?= e($item) ?></div>
+              <?php endforeach; ?>
+            <?php else: ?>
+              <div class="recommendation-item text-muted">No short-term recommendations available.</div>
+            <?php endif; ?>
           </div>
+
           <div>
-            <h6 class="mb-2 text-success"><i class="fas fa-calendar-check mr-2"></i> Long-term (6–12 months) 📅</h6>
-            <div class="recommendation-item mb-2">📊 Maintain HbA1c &lt; 7%</div>
-            <div class="recommendation-item mb-2">🥗 Follow diabetic-friendly diet plan</div>
-            <div class="recommendation-item mb-2">⚖️ Maintain healthy BMI (18.5–24.9)</div>
-            <div class="recommendation-item mb-2">👨‍⚕️ Regular follow-up with endocrinologist</div>
+            <h6 class="mb-2 text-success">
+              <i class="fas fa-calendar-check mr-2"></i> Long-term
+            </h6>
+            <?php if (!empty($longMeasures)): ?>
+              <?php foreach ($longMeasures as $item): ?>
+                <div class="recommendation-item mb-2">• <?= e($item) ?></div>
+              <?php endforeach; ?>
+            <?php else: ?>
+              <div class="recommendation-item text-muted">No long-term recommendations available.</div>
+            <?php endif; ?>
           </div>
         </div>
+
       </div>
     </div>
   </div>
 
-  <!-- CLAIM SUBMISSION -->
+  <!-- ── CLAIMS ── -->
   <div id="claims" class="anchor-offset"></div>
   <div class="card claim-card shadow mb-4">
     <div class="card-body p-0">
       <div class="claim-hero">
         <div class="d-flex flex-wrap justify-content-between align-items-center">
           <div>
-            <div class="hero-badge"><i class="fas fa-file-invoice-dollar"></i> Claim Request</div>
+            <div class="hero-badge">
+              <i class="fas fa-file-invoice-dollar"></i> Claim Request
+            </div>
             <h4 class="mt-3 mb-1 font-weight-bold">Submit a new insurance claim</h4>
             <div class="text-white-50">Fill the details below to request reimbursement for your medical service.</div>
             <div class="d-flex flex-wrap">
@@ -301,7 +414,10 @@ function rec_get($rec, string $key, $default = null) {
         <form id="claimForm" action="<?= BASE_URL ?>/patient/submitClaim" method="POST">
           <div class="row">
             <div class="col-md-4 mb-3">
-              <label class="form-label-custom"><i class="fas fa-stethoscope text-primary mr-1"></i> Type of Service <span class="text-danger">*</span></label>
+              <label class="form-label-custom">
+                <i class="fas fa-stethoscope text-primary mr-1"></i>
+                Type of Service <span class="text-danger">*</span>
+              </label>
               <select class="form-control" name="service_type" required>
                 <option value="">-- Select Service Type --</option>
                 <option value="Checkup">🩺 Checkup</option>
@@ -314,10 +430,16 @@ function rec_get($rec, string $key, $default = null) {
             </div>
 
             <div class="col-md-4 mb-3">
-              <label class="form-label-custom"><i class="fas fa-money-bill-wave text-success mr-1"></i> Claim Amount <span class="text-danger">*</span></label>
+              <label class="form-label-custom">
+                <i class="fas fa-money-bill-wave text-success mr-1"></i>
+                Claim Amount <span class="text-danger">*</span>
+              </label>
               <div class="input-group">
-                <input type="number" class="form-control" name="claim_amount" placeholder="0.00" min="0.01" step="0.01" required>
-                <div class="input-group-append"><span class="input-group-text">EGP</span></div>
+                <input type="number" class="form-control" name="claim_amount"
+                       placeholder="0.00" min="0.01" step="0.01" required>
+                <div class="input-group-append">
+                  <span class="input-group-text">EGP</span>
+                </div>
               </div>
             </div>
 
@@ -328,7 +450,7 @@ function rec_get($rec, string $key, $default = null) {
                   <span>Additional Notes (Optional)</span>
                 </div>
                 <textarea class="form-control" name="description" rows="3"
-                          placeholder="Doctor name, hospital/clinic, symptoms..."></textarea>
+                          placeholder="Doctor name, hospital/clinic, symptoms or anything that helps verify your request..."></textarea>
               </div>
             </div>
 
@@ -350,13 +472,16 @@ function rec_get($rec, string $key, $default = null) {
           </div>
         </form>
       </div>
+
     </div>
   </div>
 
 </div><!-- /container-fluid -->
 
 <footer class="sticky-footer bg-white mt-4">
-  <div class="my-auto text-center py-3"><span>Smart-Connect &copy; 2026</span></div>
+  <div class="my-auto text-center py-3">
+    <span>Smart-Connect &copy; 2026</span>
+  </div>
 </footer>
 
 <script src="<?= BASE_URL ?>/assets/js/jquery.min.js"></script>
