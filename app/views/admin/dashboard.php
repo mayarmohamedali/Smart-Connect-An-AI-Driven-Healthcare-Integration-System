@@ -572,127 +572,389 @@
 </head>
 <body>
 
-<div class="dashboard-shell">
-
-  <!-- SIDEBAR -->
-  <aside class="sidebar">
-    <div class="brand">
-      <img src="/Smart-Connect-An-AI-Driven-Healthcare-Integration-System/public/logo-landing.jpg" class="logo-img">
-      <div class="brand-text">
-        <h2>Smart-Connect</h2>
-        <p>Admin Control Panel</p>
-      </div>
-    </div>
-
-    <div class="sidebar-divider"></div>
-
-    <div class="menu-label">Navigation</div>
-
-    <div class="sidebar-menu">
-      <button class="sidebar-btn active">🏠 Dashboard</button>
-      <button class="sidebar-btn">👥 Users</button>
-      <button class="sidebar-btn">📄 Records</button>
-      <button class="sidebar-btn">📊 Reports</button>
-      <button class="sidebar-btn">⚙️ Settings</button>
-    </div>
-
-    <div class="sidebar-footer">
-      Welcome, <?php echo htmlspecialchars($_SESSION["staff_name"] ?? "Admin"); ?>
-    </div>
-  </aside>
-
-  <!-- MAIN CONTENT -->
-  <main class="main">
-
-    <!-- TOPBAR -->
-    <div class="topbar">
-      <div>
-        <h1>Admin Dashboard</h1>
-        <p>Monitor the platform and manage Smart-Connect operations.</p>
-      </div>
-      <button class="btn-main">Generate Report</button>
-    </div>
-
-    <!-- STATS -->
-    <div class="row g-4 cards-row">
-      <div class="col-md-6 col-xl-3">
-        <div class="stat-card">
-          <div class="stat-title">Total Patients</div>
-          <div class="stat-number"><?php echo $counts['totalPatients']; ?></div>
+  <div class="dashboard-shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <img src="logo-landing.jpg" alt="Smart-Connect Logo" class="logo-img">
+        <div class="brand-text">
+          <h2>Smart-Connect</h2>
+          <p>Admin Control Panel</p>
         </div>
       </div>
 
-      <div class="col-md-6 col-xl-3">
-        <div class="stat-card">
-          <div class="stat-title">Hospitals</div>
-          <div class="stat-number"><?php echo $counts['totalHospitals']; ?></div>
-        </div>
+      <div class="sidebar-divider"></div>
+      <div class="menu-label">Navigation</div>
+
+      <div class="sidebar-menu">
+        <button class="sidebar-btn active" data-section="dashboard">
+          <span class="menu-icon">🏠</span>
+          <span>Dashboard</span>
+        </button>
+
+        <button class="sidebar-btn" data-section="users">
+          <span class="menu-icon">👥</span>
+          <span>Users</span>
+        </button>
+
+        <button class="sidebar-btn" data-section="claims">
+          <span class="menu-icon">📄</span>
+          <span>Records</span>
+        </button>
+
+        <button class="sidebar-btn" data-section="reports">
+          <span class="menu-icon">📊</span>
+          <span>Reports</span>
+        </button>
+
+        <button class="sidebar-btn" data-section="settings">
+          <span class="menu-icon">⚙️</span>
+          <span>Settings</span>
+        </button>
       </div>
 
-      <div class="col-md-6 col-xl-3">
-        <div class="stat-card">
-          <div class="stat-title">Insurance Companies</div>
-          <div class="stat-number"><?php echo $counts['totalInsurances']; ?></div>
+      <div class="sidebar-footer">
+        Welcome, <?php echo htmlspecialchars($_SESSION["staff_name"] ?? "Admin"); ?>
+      </div>
+    </aside>
+
+    <main class="main">
+      <div class="topbar">
+        <div>
+          <h1 id="pageTitle">Admin Dashboard</h1>
+          <p id="pageSubtitle">Monitor the platform and manage Smart-Connect operations.</p>
         </div>
+        <button class="btn-main" onclick="generateReport()">Generate Report</button>
       </div>
 
-      <div class="col-md-6 col-xl-3">
-        <div class="stat-card">
-          <div class="stat-title">Users</div>
-          <div class="stat-number"><?php echo $counts['totalUsers']; ?></div>
+      <section id="dashboard" class="section active">
+        <div class="row g-4 cards-row">
+          <div class="col-md-6 col-xl-3">
+            <div class="stat-card">
+              <div class="stat-title">Total Patients</div>
+              <div class="stat-number"><?php echo $totalPatients; ?></div>
+            </div>
+          </div>
+
+          <div class="col-md-6 col-xl-3">
+            <div class="stat-card">
+              <div class="stat-title">Hospitals</div>
+              <div class="stat-number"><?php echo $totalHospitals; ?></div>
+            </div>
+          </div>
+
+          <div class="col-md-6 col-xl-3">
+            <div class="stat-card">
+              <div class="stat-title">Insurance Companies</div>
+              <div class="stat-number"><?php echo $totalInsurances; ?></div>
+            </div>
+          </div>
+
+          <div class="col-md-6 col-xl-3">
+            <div class="stat-card">
+              <div class="stat-title">Users</div>
+              <div class="stat-number"><?php echo $totalUsers; ?></div>
+            </div>
+          </div>
         </div>
-      </div>
-    </div>
 
-    <!-- RECENT PATIENTS -->
-    <div class="panel">
-      <h3 class="panel-title">Recent Patients</h3>
-      <p class="panel-subtitle">Latest patients registered in the Smart-Connect system.</p>
+        <div class="panel">
+          <h3 class="panel-title">Recent Patients</h3>
+          <p class="panel-subtitle">Latest patients registered in the Smart-Connect system.</p>
 
-      <div class="table-responsive">
-        <table class="table table-smart">
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>Name</th>
-              <th>National ID</th>
-              <th>Phone</th>
-              <th>Gender</th>
-            </tr>
-          </thead>
-          <tbody>
-            <?php foreach ($recentPatients as $p): ?>
-              <tr>
-                <td>#<?php echo $p['patient_id']; ?></td>
-                <td><?php echo htmlspecialchars($p['full_name']); ?></td>
-                <td><?php echo htmlspecialchars($p['national_id']); ?></td>
-                <td><?php echo htmlspecialchars($p['phone']); ?></td>
-                <td><?php echo htmlspecialchars($p['gender'] ?? 'N/A'); ?></td>
-              </tr>
-            <?php endforeach; ?>
-          </tbody>
-        </table>
-      </div>
-    </div>
-
-    <!-- RECENT USERS -->
-    <div class="panel">
-      <h3 class="panel-title">Recent Users</h3>
-
-      <?php foreach ($recentUsers as $u): ?>
-        <div class="user-card mb-2">
-          <h4><?php echo htmlspecialchars($u['full_name']); ?></h4>
-          <p><?php echo htmlspecialchars($u['role_name']); ?> - <?php echo htmlspecialchars($u['email']); ?></p>
-          <span class="mini-badge">
-            <?php echo $u['is_active'] ? "Active" : "Inactive"; ?>
-          </span>
+          <div class="table-responsive">
+            <table class="table table-smart">
+              <thead>
+                <tr>
+                  <th>Patient ID</th>
+                  <th>Full Name</th>
+                  <th>National ID</th>
+                  <th>Phone</th>
+                  <th>Gender</th>
+                </tr>
+              </thead>
+              <tbody>
+                <?php if (!empty($recentPatients)): ?>
+                  <?php foreach ($recentPatients as $patient): ?>
+                    <tr>
+                      <td>#<?php echo (int)$patient["patient_id"]; ?></td>
+                      <td><?php echo htmlspecialchars($patient["full_name"]); ?></td>
+                      <td><?php echo htmlspecialchars($patient["national_id"]); ?></td>
+                      <td><?php echo htmlspecialchars($patient["phone"]); ?></td>
+                      <td><?php echo htmlspecialchars($patient["gender"] ?: "N/A"); ?></td>
+                    </tr>
+                  <?php endforeach; ?>
+                <?php else: ?>
+                  <tr>
+                    <td colspan="5">No patients found.</td>
+                  </tr>
+                <?php endif; ?>
+              </tbody>
+            </table>
+          </div>
         </div>
-      <?php endforeach; ?>
-    </div>
+      </section>
 
-  </main>
+      <section id="users" class="section">
+        <div class="panel">
+          <h3 class="panel-title">User Management</h3>
+          <p class="panel-subtitle">Recent users from hospitals, insurance, and admin accounts.</p>
 
-</div>
+          <div class="users-grid">
+            <?php if (!empty($recentUsers)): ?>
+              <?php foreach ($recentUsers as $user): ?>
+                <div class="user-card">
+                  <h4><?php echo htmlspecialchars($user["full_name"]); ?></h4>
+                  <p><?php echo htmlspecialchars($user["role_name"]); ?><br><?php echo htmlspecialchars($user["email"]); ?></p>
+                  <span class="mini-badge"><?php echo ((int)$user["is_active"] === 1) ? "Active" : "Inactive"; ?></span>
+                </div>
+              <?php endforeach; ?>
+            <?php else: ?>
+              <div class="user-card">
+                <h4>No users found</h4>
+                <p>The users table is empty.</p>
+                <span class="mini-badge">N/A</span>
+              </div>
+            <?php endif; ?>
+          </div>
+        </div>
+      </section>
 
+      <section id="claims" class="section">
+        <div class="panel">
+          <h3 class="panel-title">Medical Records Monitoring</h3>
+          <p class="panel-subtitle">Track the latest medical records saved in the system.</p>
+
+          <div class="table-responsive">
+            <table class="table table-smart">
+              <thead>
+                <tr>
+                  <th>Record ID</th>
+                  <th>Patient ID</th>
+                  <th>Diagnosis</th>
+                  <th>Check-in</th>
+                  <th>Check-out</th>
+                </tr>
+              </thead>
+              <tbody>
+                <?php if (!empty($recentRecords)): ?>
+                  <?php foreach ($recentRecords as $record): ?>
+                    <tr>
+                      <td>#<?php echo (int)$record["record_id"]; ?></td>
+                      <td>#<?php echo (int)$record["patient_id"]; ?></td>
+                      <td><?php echo htmlspecialchars($record["diagnosis"] ?: "N/A"); ?></td>
+                      <td><?php echo htmlspecialchars($record["checkin_date"] ?: "N/A"); ?></td>
+                      <td><?php echo htmlspecialchars($record["checkout_date"] ?: "N/A"); ?></td>
+                    </tr>
+                  <?php endforeach; ?>
+                <?php else: ?>
+                  <tr>
+                    <td colspan="5">No records found.</td>
+                  </tr>
+                <?php endif; ?>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section id="reports" class="section">
+        <div class="panel">
+          <h3 class="panel-title">Reports</h3>
+          <p class="panel-subtitle">Useful summaries and quick admin insights from the database.</p>
+
+          <div class="report-grid">
+            <div class="report-card">
+              <h4>Patients Summary</h4>
+              <p>Total registered patients in the platform database.</p>
+              <button class="btn-outline-smart"><?php echo $totalPatients; ?> Patients</button>
+            </div>
+
+            <div class="report-card">
+              <h4>Hospitals Summary</h4>
+              <p>Total hospitals currently connected to the system.</p>
+              <button class="btn-outline-smart"><?php echo $totalHospitals; ?> Hospitals</button>
+            </div>
+
+            <div class="report-card">
+              <h4>Insurance Summary</h4>
+              <p>Total insurance providers stored in the platform.</p>
+              <button class="btn-outline-smart"><?php echo $totalInsurances; ?> Providers</button>
+            </div>
+
+            <div class="report-card">
+              <h4>User Activity</h4>
+              <p>Currently active accounts across admin, hospital, and insurance users.</p>
+              <button class="btn-outline-smart"><?php echo $activeUsers; ?> Active Users</button>
+            </div>
+          </div>
+
+          <div class="insights-list">
+            <div class="insight-item">
+              <strong>Latest Patient Added</strong>
+              <span><?php echo htmlspecialchars($latestPatientName); ?></span>
+            </div>
+
+            <div class="insight-item">
+              <strong>Active User Rate</strong>
+              <span><?php echo $userActivityRate; ?>% of system users are active</span>
+            </div>
+
+            <div class="insight-item">
+              <strong>Completed Insurance Policies</strong>
+              <span><?php echo $completedPolicies; ?> provider(s) completed policy setup</span>
+            </div>
+
+            <div class="insight-item">
+              <strong>Pending Insurance Policies</strong>
+              <span><?php echo $pendingPolicies; ?> provider(s) still need policy completion</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="settings" class="section">
+        <div class="panel">
+          <h3 class="panel-title">System Settings</h3>
+          <p class="panel-subtitle">Control platform preferences, alerts, appearance, and admin behavior.</p>
+
+          <div class="settings-item">
+            <div>
+              <strong>Email Notifications</strong>
+              <div class="desc">Send email updates for important platform activity and admin actions.</div>
+            </div>
+            <div class="toggle active"></div>
+          </div>
+
+          <div class="settings-item">
+            <div>
+              <strong>System Alerts</strong>
+              <div class="desc">Show alerts for login issues, failed actions, and operational warnings.</div>
+            </div>
+            <div class="toggle active"></div>
+          </div>
+
+          <div class="settings-item">
+            <div>
+              <strong>Silent Mode</strong>
+              <div class="desc">Mute non-critical notifications and reduce unnecessary interruptions.</div>
+            </div>
+            <div class="toggle"></div>
+          </div>
+
+          <div class="settings-item">
+            <div>
+              <strong>Dark Mode</strong>
+              <div class="desc">Enable a darker interface theme for lower brightness and night use.</div>
+            </div>
+            <div class="toggle" id="darkModeToggle"></div>
+          </div>
+
+          <div class="settings-item">
+            <div>
+              <strong>Maintenance Mode</strong>
+              <div class="desc">Temporarily limit access while administrators update the platform.</div>
+            </div>
+            <div class="toggle"></div>
+          </div>
+
+          <div class="settings-item">
+            <div>
+              <strong>Auto Logout</strong>
+              <div class="desc">Automatically sign out inactive users after a period of inactivity.</div>
+            </div>
+            <div class="toggle active"></div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    const buttons = document.querySelectorAll('.sidebar-btn');
+    const sections = document.querySelectorAll('.section');
+    const pageTitle = document.getElementById('pageTitle');
+    const pageSubtitle = document.getElementById('pageSubtitle');
+
+    const titles = {
+      dashboard: {
+        title: 'Admin Dashboard',
+        subtitle: 'Monitor the platform and manage Smart-Connect operations.'
+      },
+      users: {
+        title: 'Users',
+        subtitle: 'Manage hospitals, insurance providers, and platform accounts.'
+      },
+      claims: {
+        title: 'Records',
+        subtitle: 'Track and review medical records stored in the system.'
+      },
+      reports: {
+        title: 'Reports',
+        subtitle: 'View platform summaries and useful admin insights.'
+      },
+      settings: {
+        title: 'System Settings',
+        subtitle: 'Control notifications, appearance, and platform behavior.'
+      }
+    };
+
+    buttons.forEach(button => {
+      button.addEventListener('click', function () {
+        const target = this.getAttribute('data-section');
+
+        buttons.forEach(btn => btn.classList.remove('active'));
+        this.classList.add('active');
+
+        sections.forEach(section => section.classList.remove('active'));
+        document.getElementById(target).classList.add('active');
+
+        pageTitle.textContent = titles[target].title;
+        pageSubtitle.textContent = titles[target].subtitle;
+      });
+    });
+
+    const darkModeToggle = document.getElementById('darkModeToggle');
+
+    function applyDarkMode(enabled) {
+      if (enabled) {
+        document.body.classList.add('dark-mode');
+        if (darkModeToggle) darkModeToggle.classList.add('active');
+        localStorage.setItem('smartconnect_dark_mode', 'on');
+      } else {
+        document.body.classList.remove('dark-mode');
+        if (darkModeToggle) darkModeToggle.classList.remove('active');
+        localStorage.setItem('smartconnect_dark_mode', 'off');
+      }
+    }
+
+    document.querySelectorAll('.toggle').forEach(toggle => {
+      toggle.addEventListener('click', function () {
+        if (this.id === 'darkModeToggle') {
+          const isDark = document.body.classList.contains('dark-mode');
+          applyDarkMode(!isDark);
+        } else {
+          this.classList.toggle('active');
+        }
+      });
+    });
+
+    if (localStorage.getItem('smartconnect_dark_mode') === 'on') {
+      applyDarkMode(true);
+    }
+
+    function generateReport() {
+      alert(
+        "Smart-Connect Live Report\n\n" +
+        "Total Patients: <?php echo $totalPatients; ?>\n" +
+        "Hospitals: <?php echo $totalHospitals; ?>\n" +
+        "Insurance Companies: <?php echo $totalInsurances; ?>\n" +
+        "Users: <?php echo $totalUsers; ?>\n" +
+        "Active Users: <?php echo $activeUsers; ?>\n" +
+        "Completed Insurance Policies: <?php echo $completedPolicies; ?>\n" +
+        "Pending Insurance Policies: <?php echo $pendingPolicies; ?>\n\n" +
+        "This data is loaded from the database."
+      );
+    }
+  </script>
 </body>
 </html>

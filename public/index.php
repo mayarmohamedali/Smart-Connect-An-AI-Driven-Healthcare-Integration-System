@@ -4,24 +4,24 @@ session_start();
 
 define('ROOT', dirname(__DIR__));
 
-// Show errors (VERY IMPORTANT)
 ini_set('display_errors', 1);
 error_reporting(E_ALL);
 
 // Load config — defines BASE_URL, DB_* constants
 require_once ROOT . '/config/database.php';
 
-// Autoload
+// Autoload: controllers + all model files (including PolicyAutoSetup)
 spl_autoload_register(function ($class) {
     $paths = [
         ROOT . '/app/Controllers/',
         ROOT . '/app/models/',
-        ROOT . '/app/core/'
+        ROOT . '/app/core/',
     ];
-
     foreach ($paths as $path) {
-        if (file_exists($path . $class . '.php')) {
-            require_once $path . $class . '.php';
+        $file = $path . $class . '.php';
+        if (file_exists($file)) {
+            require_once $file;
+            return;
         }
     }
 });

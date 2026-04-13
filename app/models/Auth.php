@@ -22,7 +22,6 @@ class Auth
 
     private function regenerateSession(): void
     {
-        // Prevent session fixation
         if (session_status() === PHP_SESSION_ACTIVE) {
             session_regenerate_id(true);
         }
@@ -42,7 +41,7 @@ class Auth
         $this->startSession();
 
         if (!isset($_SESSION["auth_type"]) || $_SESSION["auth_type"] !== "patient") {
-            header("Location: login.html");
+            header("Location: " . BASE_URL . "/auth/login");
             exit;
         }
     }
@@ -54,7 +53,7 @@ class Auth
         if (!isset($_SESSION["auth_type"]) ||
             $_SESSION["auth_type"] !== "staff" ||
             ($_SESSION["role"] ?? "") !== $requiredRole) {
-            header("Location: login.html");
+            header("Location: " . BASE_URL . "/auth/login");
             exit;
         }
     }
@@ -92,13 +91,13 @@ class Auth
 
         $this->regenerateSession();
 
-        $_SESSION["auth_type"]     = "patient";
-        $_SESSION["patient_id"]    = (int)$row["patient_id"];
-        $_SESSION["patient_name"]  = $row["full_name"];
-        $_SESSION["insurance_id"]  = (int)($row["insurance_id"] ?? 0);
-        $_SESSION["insurance_name"]= $row["insurance_name"] ?? "";
+        $_SESSION["auth_type"]      = "patient";
+        $_SESSION["patient_id"]     = (int)$row["patient_id"];
+        $_SESSION["patient_name"]   = $row["full_name"];
+        $_SESSION["insurance_id"]   = (int)($row["insurance_id"] ?? 0);
+        $_SESSION["insurance_name"] = $row["insurance_name"] ?? "";
 
-        return ["ok" => true, "code" => 200, "redirect" => "PatientDashboard.php"];
+        return ["ok" => true, "code" => 200, "redirect" => BASE_URL . "/patient/dashboard"];
     }
 
     /* =========================
@@ -108,7 +107,7 @@ class Auth
     {
         $this->startSession();
 
-        $email = trim($email);
+        $email  = trim($email);
         $portal = trim($portal);
 
         if (!Validator::validateEmail($email) || !Validator::validatePassword($password)) {
@@ -163,53 +162,48 @@ class Auth
         $_SESSION["role"]       = $role;
         $_SESSION["staff_name"] = $user["full_name"];
 
-        $policy_completed = null;
-        $redirect = "landing_page.html";
+        $redirect = BASE_URL . "/auth/login";
 
         if ($role === "HOSPITAL_STAFF") {
             $hid = (int)($user["hospital_id"] ?? 0);
-
-            // If your DB doesn’t store hospital_id in users, keep old fallback
             if ($hid <= 0) $hid = (int)$user["user_id"];
-
             $_SESSION["hospital_id"] = $hid;
-            $redirect = "HospitalDashboard.php";
+            $redirect = BASE_URL . "/hospital/dashboard";
         }
         elseif ($role === "INSURANCE_STAFF") {
             $insurance_id = (int)($user["insurance_id"] ?? 0);
-
             if ($insurance_id <= 0) {
                 return ["ok" => false, "code" => 500, "message" => "Missing insurance_id in users table."];
             }
-
             $_SESSION["insurance_id"] = $insurance_id;
 
-            $stmt = $this->conn->prepare("
-                SELECT policy_completed
-                FROM medical_insurances
-                WHERE insurance_id=?
-                LIMIT 1
-            ");
+            // ✅ FIXED: handles both column names (policy_completed and is_policy_complete)
+          $stmt = $this->conn->prepare("
+    SELECT policy_completed AS policy_done
+    FROM medical_insurances
+    WHERE insurance_id=?
+    LIMIT 1
+");
             $stmt->bind_param("i", $insurance_id);
             $stmt->execute();
             $row = $stmt->get_result()->fetch_assoc();
             $stmt->close();
 
-            $policy_completed = (int)($row["policy_completed"] ?? 0);
-            $_SESSION["insurance_policy_completed"] = $policy_completed;
+            $policy_done = (int)($row["policy_done"] ?? 0);
+            $_SESSION["insurance_policy_completed"] = $policy_done;
 
-            $redirect = ($policy_completed === 0) ? "policy.php" : "InsuranceDashboard.php";
+            // Always redirect to dashboard – policy setup is optional/available from navbar
+            $redirect = BASE_URL . "/insurance/dashboard";
         }
         elseif ($role === "ADMIN") {
-            $redirect = "AdminDashboard.php";
+            $redirect = BASE_URL . "/admin/dashboard";
         }
 
         return [
-            "ok" => true,
-            "code" => 200,
+            "ok"       => true,
+            "code"     => 200,
             "redirect" => $redirect,
-            "policy_completed" => $policy_completed,
-            "insurance_id" => $_SESSION["insurance_id"] ?? null
+            "insurance_id" => $_SESSION["insurance_id"] ?? null,
         ];
     }
 
@@ -229,7 +223,7 @@ class Auth
         }
 
         session_destroy();
-        header("Location: login.html");
+        header("Location: " . BASE_URL . "/auth/login");
         exit;
     }
 }

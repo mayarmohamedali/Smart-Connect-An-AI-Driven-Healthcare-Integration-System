@@ -5,6 +5,11 @@ class AuthController {
     // ──────────────────────────────────────────────
     // GET  /auth/login  →  show the login page
     // ──────────────────────────────────────────────
+
+    public function policy(): void {
+    header('Location: ' . BASE_URL . '/insurance/policy');
+    exit;
+}
     public function login(): void {
         require_once ROOT . '/app/views/auth/login.php';
     }
@@ -74,6 +79,9 @@ class AuthController {
         $db->close();
     }
 
+
+
+    
     // ──────────────────────────────────────────────
     // POST /auth/staffLogin  (JSON API)
     // ──────────────────────────────────────────────

@@ -23,6 +23,7 @@ function e(mixed $v): string {
     .kpi-card .card-body { padding:14px 16px; }
     .kpi-label { font-size:.72rem; font-weight:800; letter-spacing:.6px; text-transform:uppercase; margin-bottom:6px; }
     .kpi-value { font-size:1.25rem; font-weight:800; line-height:1.1; }
+    .navbar-nav .nav-link.active { background:rgba(255,255,255,.15); border-radius:6px; }
   </style>
 </head>
 
@@ -42,11 +43,37 @@ function e(mixed $v): string {
 
     <div class="collapse navbar-collapse" id="topNavbar">
       <ul class="navbar-nav mr-auto">
-        <li class="nav-item"><a class="nav-link" href="#patients"><i class="fas fa-users mr-1"></i> Patients</a></li>
-        <li class="nav-item"><a class="nav-link" href="#addPatient"><i class="fas fa-user-plus mr-1"></i> Add Patient</a></li>
-        <li class="nav-item"><a class="nav-link" href="#claimManagement"><i class="fas fa-file-medical mr-1"></i> Claims</a></li>
-        <li class="nav-item"><a class="nav-link" href="#claimDecision"><i class="fas fa-gavel mr-1"></i> Decisions</a></li>
-        <li class="nav-item"><a class="nav-link" href="#insuranceProfile"><i class="fas fa-building mr-1"></i> Profile</a></li>
+        <li class="nav-item active">
+          <a class="nav-link" href="<?= BASE_URL ?>/insurance/dashboard">
+            <i class="fas fa-tachometer-alt mr-1"></i> Dashboard
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="#patients">
+            <i class="fas fa-users mr-1"></i> Patients
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="#addPatient">
+            <i class="fas fa-user-plus mr-1"></i> Add Patient
+          </a>
+        </li>
+        <!-- ✅ FIXED: Policy Management link added -->
+        <li class="nav-item">
+          <a class="nav-link" href="<?= BASE_URL ?>/insurance/policy">
+            <i class="fas fa-file-contract mr-1"></i> Policy Management
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="#claimManagement">
+            <i class="fas fa-file-medical mr-1"></i> Claims
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="#insuranceProfile">
+            <i class="fas fa-building mr-1"></i> Profile
+          </a>
+        </li>
       </ul>
 
       <ul class="navbar-nav ml-auto">
@@ -57,6 +84,9 @@ function e(mixed $v): string {
             <i class="fas fa-user-circle fa-2x text-white"></i>
           </a>
           <div class="dropdown-menu dropdown-menu-right shadow animated--grow-in" aria-labelledby="userDropdown">
+            <a class="dropdown-item" href="<?= BASE_URL ?>/insurance/policy">
+              <i class="fas fa-file-contract fa-sm fa-fw mr-2 text-gray-400"></i> Policy Management
+            </a>
             <div class="dropdown-divider"></div>
             <a class="dropdown-item" href="<?= BASE_URL ?>/auth/logout">
               <i class="fas fa-sign-out-alt fa-sm fa-fw mr-2 text-gray-400"></i> Logout
@@ -113,6 +143,13 @@ function e(mixed $v): string {
         </div>
       </div>
     </div>
+  </div>
+
+  <!-- Quick-action button to Policy Management -->
+  <div class="mb-4">
+    <a href="<?= BASE_URL ?>/insurance/policy" class="btn btn-outline-success">
+      <i class="fas fa-file-contract mr-2"></i> Manage Insurance Policies
+    </a>
   </div>
 
   <!-- ── Alerts ──────────────────────────────────────── -->
@@ -338,6 +375,9 @@ function e(mixed $v): string {
               <p class="mb-1"><strong>Normal – Company:</strong> Group coverage for corporate employees</p>
               <p class="mb-1"><strong>VIP – Individual:</strong> Premium coverage with private hospital access</p>
               <p class="mb-1"><strong>VIP – Company:</strong> Elite corporate health benefits package</p>
+              <a href="<?= BASE_URL ?>/insurance/policy" class="btn btn-sm btn-success mt-2">
+                <i class="fas fa-cog mr-1"></i> Configure Policies
+              </a>
             </div>
           </div>
 
