@@ -681,6 +681,7 @@ $patients = $patient->getPatientsByInsurance($insurance_id, $q);
 <script src="Js/bootstrap.bundle.min.js"></script>
 <script src="Js/jquery.easing.min.js"></script>
 <script src="Js/sb-admin-2.min.js"></script>
+
 </body>
 </html>
 <?php $db->close(); ?>
