@@ -117,12 +117,12 @@
     function selectRole(roleValue) {
         document.getElementById("role").value = roleValue;
 
-        document.querySelectorAll('.role-card').forEach(card => card.classList.remove('active'));
-        document.getElementById('card-' + roleValue).classList.add('active');
+        document.querySelectorAll(".role-card").forEach(card => card.classList.remove("active"));
+        document.getElementById("card-" + roleValue).classList.add("active");
 
         clearErrors();
 
-        if (roleValue === 'patient') {
+        if (roleValue === "patient") {
             document.getElementById("patient-only").classList.remove("d-none");
             document.getElementById("org-only").classList.add("d-none");
         } else {
@@ -155,10 +155,10 @@
     async function handleAction() {
         clearErrors();
         let valid = true;
-        const role = document.getElementById("role").value;
 
-        // UI-only name validation (not used in DB check now)
+        const role = document.getElementById("role").value;
         const nameVal = document.getElementById("fullName").value.trim();
+
         if (!/^[A-Za-z\s]{3,}$/.test(nameVal)) {
             showError("fullName", "nameError");
             valid = false;
@@ -177,8 +177,6 @@
                 showError("phone", "phoneError");
                 valid = false;
             }
-            if (!/^[0-9]{14}$/.test(nid)) { showError("nationalId", "nidError"); valid = false; }
-            if (!/^(010|011|012|015)[0-9]{8}$/.test(ph)) { showError("phone", "phoneError"); valid = false; }
 
             if (!valid) return;
 
@@ -189,6 +187,7 @@
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
+                        full_name: nameVal,
                         national_id: nid,
                         phone: ph
                     })
@@ -222,8 +221,6 @@
                 showError("password", "passwordError");
                 valid = false;
             }
-            if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mail)) { showError("email", "emailError"); valid = false; }
-            if (pass.length < 6) { showError("password", "passwordError"); valid = false; }
 
             if (!valid) return;
 
@@ -238,11 +235,6 @@
                         password: pass,
                         portal: role
                     })
-      
-                const res = await fetch("staff_login.php", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ email: mail, password: pass, portal: role })
                 });
 
                 const data = await res.json();
@@ -252,16 +244,16 @@
                     return;
                 }
 
-                // Insurance first-time setup
-               if (role === "insurance") {
-    if (!data.policy_completed) {
-        window.location.href = "policy.php";
-        return;
-    }
-}
+                if (role === "insurance" && !data.policy_completed) {
+                    window.location.href = "InsurancePlan.php";
+                    return;
+                }
 
-
-                window.location.href = data.redirect || "landing_page.html";
+                if (data.redirect) {
+                    window.location.href = data.redirect;
+                } else {
+                    window.location.href = "landing_page.html";
+                }
 
             } catch (e) {
                 alert("Network error: " + e.message);
