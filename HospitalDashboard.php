@@ -129,8 +129,7 @@ $stmt = $conn->prepare("
   INNER JOIN patients p ON p.patient_id = mr.patient_id
   INNER JOIN insurance_hospitals ih ON ih.insurance_id = p.insurance_id
   WHERE ih.hospital_id = ?
-    AND MONTH(mr.created_at) = MONTH(CURDATE())
-    AND YEAR(mr.created_at)  = YEAR(CURDATE())
+AND mr.created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
   LIMIT 500
 ");
 $stmt->bind_param("i", $hospital_id);
@@ -331,8 +330,8 @@ if ($api_alive && $records_this_month > 0) {
         <span class="badge badge-<?= $records_this_month >= 5 ? 'primary' : 'secondary' ?> p-2">
           <i class="fas fa-database mr-1"></i>
           <?= $records_this_month ?> records this month
-          <?php if ($records_this_month < 5): ?>
-            &mdash; need <?= 5 - $records_this_month ?> more for live forecast
+          <?php if ($records_this_month < 10): ?>
+            &mdash; need <?= 10 - $records_this_month ?> more for forecast
           <?php endif; ?>
         </span>
       </div>
@@ -369,7 +368,7 @@ if ($api_alive && $records_this_month > 0) {
       <div class="alert alert-info d-flex align-items-start mb-3" style="gap:12px;">
         <i class="fas fa-info-circle fa-2x mt-1"></i>
         <div style="flex:1;">
-          <strong>Collecting patient data for live forecast...</strong><br>
+          <strong>Collecting patient data for forecast...</strong><br>
           <small><?= $records_this_month ?> of 20 records needed this month. Showing historical baseline until enough records are collected.</small>
           <div class="progress mt-2" style="height:8px; border-radius:4px;">
             <div class="progress-bar bg-info" style="width:<?= min(100, ($records_this_month/20)*100) ?>%"></div>

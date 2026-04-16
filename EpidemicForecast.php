@@ -93,7 +93,7 @@ class EpidemicForecast
 
         return $this->post("/api/hospital/forecast", [
             "patients"     => $patients,
-            "min_patients" => 20,
+            "min_patients" => 5,
         ]);
     }
 

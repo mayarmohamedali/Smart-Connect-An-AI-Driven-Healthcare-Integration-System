@@ -1,0 +1,17 @@
+{
+  "best_model": "Linear Regression",
+  "loocv_r2": 0.9636363317552885,
+  "training_rows": 12,
+  "features": [
+    "Coverage_Growth_Lag1",
+    "Coverage_Growth_Lag2",
+    "Patient_Count_Growth",
+    "Patient_Count",
+    "Avg_Treatment_Cost",
+    "Avg_Coverage_Pct",
+    "Avg_Claim_Amount",
+    "Claim_Approved_Rate"
+  ],
+  "baseline_row_count": 48968,
+  "saved_at": "2026-04-13T22:10:31.495441"
+}

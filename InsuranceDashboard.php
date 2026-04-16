@@ -1,13 +1,17 @@
 <?php
 /**
- * Insurance Dashboard - OOP Version - COMPLETE WITH CHARTS
+ * InsuranceDashboard.php - OOP Version - COMPLETE WITH ML FORECAST
+ * ✅ Real ML coverage forecast from Flask API
+ * ✅ Live DB data sent to model when enough claims exist
+ * ✅ Falls back to saved model forecast gracefully
  */
 
 require_once __DIR__ . '/Database.php';
-require_once __DIR__ .'/Auth.php';
-require_once __DIR__ .'/Patient.php';
-require_once __DIR__ .'/Insurance.php';
-require_once __DIR__ .'/Validator.php';
+require_once __DIR__ . '/Auth.php';
+require_once __DIR__ . '/Patient.php';
+require_once __DIR__ . '/Insurance.php';
+require_once __DIR__ . '/Validator.php';
+require_once __DIR__ . '/InsuranceForecast.php';
 
 $db   = new Database();
 $conn = $db->getConnection();
@@ -21,7 +25,7 @@ if ($insurance_id <= 0) die("Missing insurance_id in session.");
 $success_msg = "";
 $error_msg   = "";
 
-$insurance = new Insurance($conn);
+$insurance      = new Insurance($conn);
 $insurance->loadById($insurance_id);
 $insurance_name = $insurance->getName();
 
@@ -30,90 +34,118 @@ $kpi_policies_active = $insurance->getKPIActivePolicies();
 $kpi_cases_month     = $insurance->getKPICasesThisMonth();
 $kpi_pending_reviews = $insurance->getKPIPendingReviews();
 
+// ── ML FORECAST INTEGRATION ───────────────────────────────────────────────────
+// Step 1: Pull real claims + patient data for this company from DB
+$stmt = $conn->prepare("
+    SELECT
+        COALESCE(mr.age, 35)                                AS Age,
+        CASE p.gender WHEN 'M' THEN 'Male' ELSE 'Female' END AS Gender,
+        COALESCE(mr.bmi, 25.0)                              AS BMI,
+        COALESCE(mr.systolic_bp, 120)                       AS Blood_Pressure,
+        COALESCE(c.treatment_cost, 5000)                    AS Treatment_Cost,
+        COALESCE(c.coverage_percentage, 0.75)               AS Coverage_Percentage,
+        COALESCE(c.claim_amount, 3000)                      AS Claim_Amount,
+        c.claim_status                                      AS Claim_Status,
+        COALESCE(mr.admission_count, 1)                     AS Admission_Count,
+        COALESCE(mr.length_of_stay, 3)                      AS Length_of_Stay,
+        YEAR(COALESCE(c.created_at, NOW()))                 AS Year
+    FROM claims c
+    INNER JOIN patients       p  ON p.patient_id  = c.patient_id
+    LEFT  JOIN medical_records mr ON mr.patient_id = c.patient_id
+    WHERE c.insurance_id = ?
+      AND YEAR(c.created_at) >= YEAR(CURDATE()) - 1
+    ORDER BY c.created_at DESC
+    LIMIT 500
+");
+$stmt->bind_param("i", $insurance_id);
+$stmt->execute();
+$raw_claims = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+$stmt->close();
 
 
+// Step 2: Build patient batch for the ML API
+$patients_for_forecast = [];
+foreach ($raw_claims as $row) {
+    $patients_for_forecast[] = [
+        "Age"                => (float)$row["Age"],
+        "Gender"             => (string)$row["Gender"],
+        "BMI"                => (float)$row["BMI"],
+        "Blood_Pressure"     => (float)$row["Blood_Pressure"],
+        "Treatment_Cost"     => (float)$row["Treatment_Cost"],
+        "Coverage_Percentage"=> (float)$row["Coverage_Percentage"],
+        "Claim_Amount"       => (float)$row["Claim_Amount"],
+        "Claim_Status"       => (string)$row["Claim_Status"],
+        "Admission_Count"    => (int)$row["Admission_Count"],
+        "Length_of_Stay"     => (int)$row["Length_of_Stay"],
+        "Year"               => (float)$row["Year"],
+        "Insurance_Company"  => $insurance_name, // 
+    ];
+}
+$db_records_count = count($patients_for_forecast);
 
-/*
-|--------------------------------------------------------------------------
-| Insurance Prediction Section
-|--------------------------------------------------------------------------
-| Show ONLY the prediction for the logged-in company
-*/
-$prediction_map = [
-    "AXA" => [
-        "predicted_increase" => 20,
-        "confidence" => 96.4,
-        "period" => date('F'),
-        "action" => "Review AXA pricing changes and prepare policyholder communication."
-    ],
-    "MetLife" => [
-        "predicted_increase" => 14,
-        "confidence" => 93.8,
-        "period" => date('F'),
-        "action" => "Review MetLife pricing changes and assess claim-cost drivers."
-    ],
-    "Bupa" => [
-        "predicted_increase" => 18,
-        "confidence" => 95.1,
-        "period" => date('F'),
-        "action" => "Prepare Bupa premium review and monitor cost escalation."
-    ],
-    "Allianz" => [
-        "predicted_increase" => 12,
-        "confidence" => 92.7,
-        "period" => date('F'),
-        "action" => "Assess Allianz pricing trend and notify relevant teams."
-    ]
-];
+// Step 3: Call Flask API
+// ── ML FORECAST INTEGRATION ─────────────────────────────
+$if        = new InsuranceForecast("http://127.0.0.1:5000");
+$api_alive = $if->isApiAlive();
 
-$current_prediction = $prediction_map[$insurance_name] ?? [
-    "predicted_increase" => 0,
-    "confidence" => 0,
-    "period" => date('F'),
-    "action" => "No prediction available yet for this insurance company."
-];
+$ml_forecast = [];
+if ($api_alive) {
+    if ($db_records_count >= 10) {
+        // Try live first
+        $ml_forecast = $if->getLiveForecast($insurance_name, $patients_for_forecast);
+
+        // If live failed, fallback to saved model
+        if (empty($ml_forecast) || ($ml_forecast["status"] ?? "") !== "ok") {
+            error_log("Live forecast failed: " . json_encode($ml_forecast));
+            $ml_forecast = $if->getSavedForecast($insurance_name);
+        }
+    } else {
+        $ml_forecast = $if->getSavedForecast($insurance_name);
+    }
+}
+// ─────────────────────────────────────────────────────────────────────────────
 
 // Handle ADD PATIENT
 if ($_SERVER["REQUEST_METHOD"] === "POST" && ($_POST["action"] ?? "") === "add_patient") {
-  $full_name   = trim($_POST["full_name"]   ?? "");
-  $national_id = trim($_POST["national_id"] ?? "");
-  $phone       = trim($_POST["phone"]       ?? "");
-  $gender      = trim($_POST["gender"]      ?? "");
-  $address     = trim($_POST["address"]     ?? "");
-  if ($full_name===""||$national_id===""||$phone===""||$gender===""||$address==="") {
-    $error_msg = "Please fill all fields.";
-  } elseif (!Validator::validateNationalId($national_id)) {
-    $error_msg = "National ID must be 14 digits.";
-  } elseif (!Validator::validatePhone($phone)) {
-    $error_msg = "Phone must be Egyptian format (010/011/012/015 + 8 digits).";
-  } else {
-    $check = $conn->prepare("SELECT patient_id FROM patients WHERE national_id=? LIMIT 1");
-    $check->bind_param("s", $national_id);
-    $check->execute();
-    $exists = $check->get_result()->fetch_assoc();
-    $check->close();
-    if ($exists) {
-      $error_msg = "Patient already exists (ID: ".(int)$exists["patient_id"].").";
+    $full_name   = trim($_POST["full_name"]   ?? "");
+    $national_id = trim($_POST["national_id"] ?? "");
+    $phone       = trim($_POST["phone"]       ?? "");
+    $gender      = trim($_POST["gender"]      ?? "");
+    $address     = trim($_POST["address"]     ?? "");
+    if ($full_name===""||$national_id===""||$phone===""||$gender===""||$address==="") {
+        $error_msg = "Please fill all fields.";
+    } elseif (!Validator::validateNationalId($national_id)) {
+        $error_msg = "National ID must be 14 digits.";
+    } elseif (!Validator::validatePhone($phone)) {
+        $error_msg = "Phone must be Egyptian format (010/011/012/015 + 8 digits).";
     } else {
-      $patient = new Patient($conn);
-      $patient->setFullName($full_name);
-      $patient->setNationalId($national_id);
-      $patient->setPhone($phone);
-      $patient->setGender($gender);
-      $patient->setAddress($address);
-      if ($patient->create(null, $insurance_id)) {
-        header("Location: InsuranceDashboard.php#patients");
-        exit;
-      } else { $error_msg = "Failed to create patient."; }
+        $check = $conn->prepare("SELECT patient_id FROM patients WHERE national_id=? LIMIT 1");
+        $check->bind_param("s", $national_id);
+        $check->execute();
+        $exists = $check->get_result()->fetch_assoc();
+        $check->close();
+        if ($exists) {
+            $error_msg = "Patient already exists (ID: ".(int)$exists["patient_id"].").";
+        } else {
+            $patient = new Patient($conn);
+            $patient->setFullName($full_name);
+            $patient->setNationalId($national_id);
+            $patient->setPhone($phone);
+            $patient->setGender($gender);
+            $patient->setAddress($address);
+            if ($patient->create(null, $insurance_id)) {
+                header("Location: InsuranceDashboard.php#patients");
+                exit;
+            } else { $error_msg = "Failed to create patient."; }
+        }
     }
-  }
 }
 
 $patient  = new Patient($conn);
 $q        = trim($_GET["q"] ?? "");
 $patients = $patient->getPatientsByInsurance($insurance_id, $q);
 
-// ── QUERY 1: FRAUD DETECTION ─────────────────────────────────
+// ── Fraud & Renewal queries (unchanged) ───────────────────────────────────────
 $fraud_query = $conn->prepare("
     SELECT p.patient_id, p.full_name, p.national_id, p.phone,
            pp.policy_number, pp.status AS policy_status,
@@ -136,7 +168,6 @@ $fraud_query->execute();
 $fraud_patients = $fraud_query->get_result()->fetch_all(MYSQLI_ASSOC);
 $fraud_query->close();
 
-// ── QUERY 2: POLICY RENEWAL PRICING ──────────────────────────
 $renewal_query = $conn->prepare("
     SELECT p.patient_id, p.full_name, p.gender,
            pp.policy_number, pp.end_date, pp.status AS policy_status,
@@ -167,7 +198,6 @@ $renewal_query->execute();
 $renewal_patients = $renewal_query->get_result()->fetch_all(MYSQLI_ASSOC);
 $renewal_query->close();
 
-// Helper
 function riskTier($score) {
     if ($score===null||$score==0) return ['Unknown','secondary'];
     if ($score>=0.7) return ['High Risk','danger'];
@@ -175,7 +205,6 @@ function riskTier($score) {
     return ['Low Risk','success'];
 }
 
-// ── Pre-build JS chart data ───────────────────────────────────
 $fraud_names      = array_map(fn($r)=>$r['full_name'],                 $fraud_patients);
 $fraud_admissions = array_map(fn($r)=>(int)$r['admission_count'],      $fraud_patients);
 $fraud_claimed    = array_map(fn($r)=>(float)($r['total_claimed']??0), $fraud_patients);
@@ -185,11 +214,10 @@ $ren_names = array_map(fn($r)=>$r['full_name'],                        $renewal_
 $ren_days  = array_map(fn($r)=>(int)($r['days_until_expiry']??0),      $renewal_patients);
 $ren_risk  = array_map(fn($r)=>round((float)($r['risk_score']??0),4),  $renewal_patients);
 
-// Renewal advice counts for pie
 $raise_c = $review_c = $std_c = 0;
 foreach ($renewal_patients as $rp) {
     [$tl] = riskTier((float)($rp['risk_score']??0));
-    $ch = (int)($rp['chronic_count']??0);
+    $ch   = (int)($rp['chronic_count']??0);
     if ($tl==='High Risk'||$ch>=2)        $raise_c++;
     elseif ($tl==='Medium Risk'||$ch===1) $review_c++;
     else                                  $std_c++;
@@ -197,6 +225,26 @@ foreach ($renewal_patients as $rp) {
 
 $high_risk_count   = $raise_c;
 $total_renewal_exp = array_sum(array_column($renewal_patients,'total_claimed'));
+
+// ── ML Forecast display helpers ───────────────────────────────────────────────
+$ml_ok          = !empty($ml_forecast) && ($ml_forecast["status"] ?? "") === "ok";
+$ml_source      = $ml_forecast["source"]             ?? "none";
+$ml_blended     = $ml_ok ? (float)($ml_forecast["blended_change_pct"] ?? 0) : 0;
+$ml_lower       = $ml_ok ? (float)($ml_forecast["lower_pct"]          ?? 0) : 0;
+$ml_upper       = $ml_ok ? (float)($ml_forecast["upper_pct"]          ?? 0) : 0;
+$ml_uncertainty = $ml_ok ? (float)($ml_forecast["uncertainty_pp"]     ?? 0) : 0;
+$ml_action      = $ml_ok ? ($ml_forecast["action"] ?? "") : "";
+$ml_db_rows = $db_records_count;
+$ml_year        = $ml_ok ? (int)($ml_forecast["predicted_year"] ?? date('Y')+1) : (int)date('Y')+1;
+
+// Determine alert color based on magnitude
+function forecastColor(float $pct): string {
+    if ($pct >= 15) return "danger";
+    if ($pct >= 8)  return "warning";
+    if ($pct >= 3)  return "info";
+    return "success";
+}
+$fc_color = forecastColor($ml_blended);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -216,102 +264,22 @@ $total_renewal_exp = array_sum(array_column($renewal_patients,'total_claimed'));
     .kpi-label{font-size:.72rem;font-weight:800;letter-spacing:.6px;text-transform:uppercase}
     .kpi-value{font-size:1.25rem;font-weight:800}
     .chart-wrap{background:#fff;border-radius:10px;padding:14px 12px 10px;box-shadow:0 2px 10px rgba(0,0,0,.07)}
-    .insight-box{border-radius:8px;padding:11px 15px;font-size:.84rem}
     .leg-dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:4px}
     .accent-fraud{border-top:4px solid #e74c3c!important}
     .accent-renew{border-top:4px solid #8e44ad!important}
     .table-sm td,.table-sm th{padding:.42rem .6rem}
-  
-        .anchor-offset { scroll-margin-top: 90px; }
-        .dash-title { font-weight: 800; letter-spacing: .2px; }
-        .kpi-card { border-radius: 12px; }
-        .kpi-label { font-size: .72rem; font-weight: 800; letter-spacing: .6px; text-transform: uppercase; }
-        .kpi-value { font-size: 1.25rem; font-weight: 800; }
-
-        .insurance-alert-banner {
-            border-left: 5px solid #e74a3b;
-            border-radius: 12px;
-            background: #fff;
-            box-shadow: 0 .15rem 1rem 0 rgba(58,59,69,.08);
-            padding: 1.25rem 1.5rem;
-            margin-bottom: 1.25rem;
-        }
-
-        .insurance-alert-title {
-            font-weight: 800;
-            color: #e74a3b;
-            margin-bottom: .25rem;
-        }
-
-        .insurance-alert-subtitle {
-            color: #6c757d;
-            margin-bottom: 0;
-        }
-
-        .insurance-prediction-count {
-            background: #e74a3b;
-            color: #fff;
-            border-radius: 999px;
-            padding: .65rem 1rem;
-            font-weight: 700;
-            font-size: .85rem;
-            white-space: nowrap;
-        }
-
-        .prediction-card {
-            border-left: 5px solid #f6c23e;
-            border-radius: 12px;
-            box-shadow: 0 .15rem 1rem 0 rgba(58,59,69,.08);
-        }
-
-        .prediction-card h5 {
-            color: #f6a800;
-            font-weight: 800;
-        }
-
-        .confidence-badge {
-            display: inline-block;
-            background: #e74a3b;
-            color: #fff;
-            padding: .15rem .5rem;
-            border-radius: .35rem;
-            font-size: .75rem;
-            font-weight: 700;
-        }
-
-        .prediction-action-box {
-            background: #fff3cd;
-            border-radius: .5rem;
-            padding: .85rem 1rem;
-            color: #856404;
-            margin-top: 1rem;
-            margin-bottom: 1rem;
-        }
-
-        .prediction-meta p {
-            margin-bottom: .55rem;
-            color: #5a5c69;
-        }
-
-        .prediction-meta strong {
-            color: #4e5361;
-        }
-
-        .prediction-list {
-            margin-bottom: 0;
-            padding-left: 1.2rem;
-            color: #6c757d;
-        }
-
-        .prediction-list li {
-            margin-bottom: .4rem;
-        }
-  
+    /* ML Prediction card */
+    .ml-prediction-card{border-radius:14px;box-shadow:0 .15rem 1.75rem 0 rgba(58,59,69,.12);}
+    .ml-badge-live{background:#1cc88a;color:#fff;font-size:.7rem;padding:2px 8px;border-radius:10px;font-weight:700;}
+    .ml-badge-saved{background:#858796;color:#fff;font-size:.7rem;padding:2px 8px;border-radius:10px;font-weight:700;}
+    .ml-badge-offline{background:#e74a3b;color:#fff;font-size:.7rem;padding:2px 8px;border-radius:10px;font-weight:700;}
+    .forecast-big-num{font-size:2.8rem;font-weight:800;line-height:1.1;}
+    .range-bar-wrap{background:#f0f0f0;border-radius:8px;height:10px;position:relative;margin:8px 0;}
+    .range-bar-fill{height:10px;border-radius:8px;position:absolute;}
   </style>
 </head>
 <body id="page-top" class="bg-light">
 
-<!-- NAVBAR -->
 <nav class="navbar navbar-expand-lg navbar-dark bg-success shadow sticky-top">
   <div class="container-fluid">
     <a class="navbar-brand d-flex align-items-center" href="InsuranceDashboard.php">
@@ -324,12 +292,13 @@ $total_renewal_exp = array_sum(array_column($renewal_patients,'total_claimed'));
     <div class="collapse navbar-collapse" id="topNavbar">
       <ul class="navbar-nav mr-auto">
         <li class="nav-item"><a class="nav-link" href="#dashboard"><i class="fas fa-tachometer-alt mr-1"></i> Dashboard</a></li>
+        <li class="nav-item"><a class="nav-link" href="#mlPrediction"><i class="fas fa-brain mr-1"></i> ML Prediction</a></li>
         <li class="nav-item"><a class="nav-link" href="#patients"><i class="fas fa-users mr-1"></i> Patients</a></li>
         <li class="nav-item"><a class="nav-link" href="#addPatient"><i class="fas fa-user-plus mr-1"></i> Add Patient</a></li>
         <li class="nav-item"><a class="nav-link" href="#claimManagement"><i class="fas fa-file-medical mr-1"></i> Claims</a></li>
         <li class="nav-item"><a class="nav-link" href="#insuranceProfile"><i class="fas fa-building mr-1"></i> Profile</a></li>
         <li class="nav-item"><a class="nav-link" href="Policy.php"><i class="fas fa-file-alt mr-1"></i> Policy</a></li>
-        <li class="nav-item"><a class="nav-link" href="#riskAnalysis"><i class="fas fa-brain mr-1"></i> Risk Analysis</a></li>
+        <li class="nav-item"><a class="nav-link" href="#riskAnalysis"><i class="fas fa-exclamation-triangle mr-1"></i> Risk Analysis</a></li>
       </ul>
       <ul class="navbar-nav ml-auto">
         <li class="nav-item dropdown">
@@ -384,7 +353,6 @@ $total_renewal_exp = array_sum(array_column($renewal_patients,'total_claimed'));
     </div>
   </div>
 
-  <!-- ALERTS -->
   <?php if ($success_msg): ?>
     <div class="alert alert-success alert-dismissible fade show"><?= $success_msg ?><button type="button" class="close" data-dismiss="alert">&times;</button></div>
   <?php endif; ?>
@@ -392,7 +360,174 @@ $total_renewal_exp = array_sum(array_column($renewal_patients,'total_claimed'));
     <div class="alert alert-danger alert-dismissible fade show"><?= Validator::sanitizeInput($error_msg) ?><button type="button" class="close" data-dismiss="alert">&times;</button></div>
   <?php endif; ?>
 
-  <!-- ADD PATIENT + PATIENTS TABLE -->
+  <!-- ═══════════════════════════════════════════════════════
+       ML PREDICTION SECTION — Real Flask API integration
+       ═══════════════════════════════════════════════════════ -->
+  <div id="mlPrediction" class="anchor-offset mb-4">
+    <div class="d-flex align-items-center justify-content-between flex-wrap mb-3">
+      <h4 class="font-weight-bold text-gray-800 mb-0">
+        <i class="fas fa-brain mr-2 text-success"></i>
+        <?= Validator::sanitizeInput($insurance_name) ?> — Coverage Forecast <?= $ml_year ?>
+      </h4>
+      <div class="d-flex align-items-center" style="gap:8px;">
+        <?php if (!$api_alive): ?>
+          <span class="ml-badge-offline"><i class="fas fa-times-circle mr-1"></i>ML API Offline</span>
+       <?php elseif ($ml_source === "live_db" || $ml_source === "live_db_adjusted"): ?>
+    <span class="ml-badge-live">
+        <i class="fas fa-circle mr-1"></i>
+        LIVE<?= $ml_source === "live_db_adjusted" ? " (adjusted)" : "" ?> 
+        — <?= $ml_db_rows ?> DB records
+    </span>
+        <?php else: ?>
+          <span class="ml-badge-saved"><i class="fas fa-database mr-1"></i>Trained Model</span>
+        <?php endif; ?>
+        <span class="badge badge-<?= $db_records_count >= 10 ? 'success' : 'secondary' ?> p-2">
+          <i class="fas fa-file-medical mr-1"></i><?= $db_records_count ?> claims in DB
+          <?= $db_records_count < 10 ? '(need 10+ for live)' : '' ?>
+        </span>
+      </div>
+    </div>
+
+    <?php if (!$api_alive): ?>
+      <div class="alert alert-warning">
+        <i class="fas fa-plug mr-2"></i>
+        <strong>ML API not running.</strong>
+        Open a terminal and run: <code>py app.py</code> — then refresh.
+      </div>
+    <?php elseif ($ml_ok): ?>
+
+      <div class="row">
+        <!-- Main forecast number -->
+        <div class="col-xl-4 col-lg-5 mb-4">
+          <div class="card ml-prediction-card border-left-<?= $fc_color ?> h-100">
+            <div class="card-body d-flex flex-column justify-content-center text-center py-4">
+              <p class="text-muted mb-1" style="font-size:.8rem; text-transform:uppercase; letter-spacing:.5px;">
+                Predicted Coverage Increase
+              </p>
+              <div class="forecast-big-num text-<?= $fc_color ?>">
+                +<?= number_format($ml_blended, 1) ?>%
+              </div>
+              <p class="text-muted mt-1 mb-3" style="font-size:.82rem;">
+                for <?= $ml_year ?>
+              </p>
+
+              <!-- Range bar -->
+              <p class="mb-1" style="font-size:.75rem; color:#888;">
+                Forecast range: <strong>+<?= number_format($ml_lower, 1) ?>%</strong>
+                to <strong>+<?= number_format($ml_upper, 1) ?>%</strong>
+              </p>
+              <?php
+                $range_total = max(0.1, $ml_upper - $ml_lower);
+                $fill_pct    = min(100, max(5, (($ml_blended - $ml_lower) / $range_total) * 100));
+              ?>
+              <div class="range-bar-wrap">
+                <div class="range-bar-fill bg-<?= $fc_color ?>"
+                     style="width:<?= round($fill_pct) ?>%; left:0;"></div>
+              </div>
+              <p class="text-muted" style="font-size:.72rem;">
+                Uncertainty ±<?= number_format($ml_uncertainty, 1) ?> pp
+              </p>
+
+              <hr class="my-2">
+              <div class="text-left" style="font-size:.82rem;">
+                <span class="font-weight-bold text-<?= $fc_color ?>">
+                  <i class="fas fa-exclamation-circle mr-1"></i>
+                </span>
+                <?= Validator::sanitizeInput($ml_action) ?>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Details + history chart -->
+        <div class="col-xl-8 col-lg-7 mb-4">
+          <div class="card ml-prediction-card h-100">
+            <div class="card-header py-3 d-flex align-items-center justify-content-between">
+              <h6 class="m-0 font-weight-bold text-success">
+                <i class="fas fa-chart-line mr-2"></i>Coverage History &amp; Forecast
+              </h6>
+              <small class="text-muted">
+                <?php if ($ml_source === "live_db"): ?>
+                  Source: <?= $ml_db_rows ?> real DB claims &nbsp;&middot;&nbsp; Model blend 60% ML + 40% trend
+                <?php else: ?>
+                  Source: Trained model (60% ML + 40% weighted trend)
+                <?php endif; ?>
+              </small>
+            </div>
+            <div class="card-body">
+              <!-- Breakdown table -->
+              <div class="row mb-3">
+                <div class="col-md-4 text-center">
+                  <div style="background:#f8f9fc;border-radius:8px;padding:12px 8px;">
+                    <div style="font-size:1.4rem;font-weight:800;color:#4e73df;">
+                      <?= $ml_forecast["ML_Change_Pct"] ?? number_format($ml_blended,1) ?>%
+                    </div>
+                    <div style="font-size:.72rem;color:#888;text-transform:uppercase;">ML Prediction</div>
+                  </div>
+                </div>
+                <div class="col-md-4 text-center">
+                  <div style="background:#f8f9fc;border-radius:8px;padding:12px 8px;">
+                    <div style="font-size:1.4rem;font-weight:800;color:#1cc88a;">
+                      <?= $ml_forecast["Trend_Change_Pct"] ?? "—" ?>%
+                    </div>
+                    <div style="font-size:.72rem;color:#888;text-transform:uppercase;">Historical Trend</div>
+                  </div>
+                </div>
+                <div class="col-md-4 text-center">
+                  <div style="background:#f8f9fc;border-radius:8px;padding:12px 8px;">
+                    <div style="font-size:1.4rem;font-weight:800;color:var(--<?= $fc_color ?>);" class="text-<?= $fc_color ?>">
+                      +<?= number_format($ml_blended,1) ?>%
+                    </div>
+                    <div style="font-size:.72rem;color:#888;text-transform:uppercase;">Blended Forecast</div>
+                  </div>
+                </div>
+              </div>
+              <!-- History chart -->
+              <div style="position:relative;height:200px;">
+                <canvas id="coverageHistoryChart"></canvas>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Data source note -->
+      <?php if ($ml_source === "live_db"): ?>
+        <div class="alert alert-success py-2">
+          <i class="fas fa-check-circle mr-2"></i>
+          <strong>Live prediction:</strong> Based on <?= $ml_db_rows ?> real claims/patient records pulled from your database.
+          The ML model processed your actual treatment costs and claim amounts for <?= Validator::sanitizeInput($insurance_name) ?>.
+        </div>
+      <?php elseif ($db_records_count > 0 && $db_records_count < 10): ?>
+        <div class="alert alert-info py-2">
+          <i class="fas fa-info-circle mr-2"></i>
+          <strong>Nearly live:</strong> Found <?= $db_records_count ?> DB records.
+          Need 10+ to generate a live forecast — showing trained model baseline.
+          Add more claims to unlock the live prediction.
+          <div class="progress mt-2" style="height:6px;border-radius:4px;">
+            <div class="progress-bar bg-info" style="width:<?= min(100,($db_records_count/10)*100) ?>%"></div>
+          </div>
+        </div>
+      <?php else: ?>
+        <div class="alert alert-secondary py-2">
+          <i class="fas fa-database mr-2"></i>
+          <strong>Trained model baseline:</strong> No claims found in DB yet.
+          This forecast is based on the trained model's learned patterns.
+          Once claims are added, a live prediction will be generated automatically.
+        </div>
+      <?php endif; ?>
+
+    <?php else: ?>
+      <div class="alert alert-danger">
+        <i class="fas fa-exclamation-triangle mr-2"></i>
+        <strong>Forecast unavailable.</strong>
+        <?= Validator::sanitizeInput($ml_forecast["error"] ?? $ml_forecast["message"] ?? "Unknown error from ML API.") ?>
+      </div>
+    <?php endif; ?>
+  </div>
+  <!-- ═══════════════════════════════════════════════════════ END ML PREDICTION -->
+
+  <!-- ADD PATIENT + PATIENTS TABLE (unchanged) -->
   <div class="row">
     <div class="col-lg-5 mb-4" id="addPatient">
       <div class="card shadow h-100">
@@ -448,9 +583,9 @@ $total_renewal_exp = array_sum(array_column($renewal_patients,'total_claimed'));
                     <td><?= Validator::sanitizeInput($p["plan_name"]??"-") ?></td>
                     <td>
                       <?php $st=$p["status"]??"";
-                        if($st==="active") echo '<span class="badge badge-success">active</span>';
+                        if($st==="active")    echo '<span class="badge badge-success">active</span>';
                         elseif($st==="suspended") echo '<span class="badge badge-warning">suspended</span>';
-                        elseif($st==="expired") echo '<span class="badge badge-secondary">expired</span>';
+                        elseif($st==="expired")   echo '<span class="badge badge-secondary">expired</span>';
                         else echo '<span class="badge badge-light">no policy</span>';
                       ?>
                     </td>
@@ -470,7 +605,7 @@ $total_renewal_exp = array_sum(array_column($renewal_patients,'total_claimed'));
     </div>
   </div>
 
-  <!-- CLAIMS -->
+  <!-- CLAIMS (unchanged) -->
   <div class="row">
     <div class="col-xl-6 col-md-6 mb-4 anchor-offset" id="claimManagement">
       <div class="card border-left-primary shadow h-100 py-2">
@@ -506,7 +641,7 @@ $total_renewal_exp = array_sum(array_column($renewal_patients,'total_claimed'));
     </div>
   </div>
 
-  <!-- INSURANCE PROFILE -->
+  <!-- INSURANCE PROFILE (unchanged) -->
   <div class="row">
     <div class="col-12 mb-4 anchor-offset" id="insuranceProfile">
       <div class="card border-left-secondary shadow py-2">
@@ -549,36 +684,7 @@ $total_renewal_exp = array_sum(array_column($renewal_patients,'total_claimed'));
     </div>
   </div>
 
-  <div class="card prediction-card h-100">
-    <div class="card-body">
-        <h5 class="mb-3">
-            <i class="fas fa-exclamation-circle mr-2"></i>
-            ALERT: <?= Validator::sanitizeInput($insurance_name) ?> Premium Increase
-        </h5>
-
-        <div class="prediction-meta">
-            <p><strong>Month:</strong> <?= Validator::sanitizeInput($current_prediction["period"]) ?></p>
-            <p>
-                <strong>Confidence:</strong>
-                <span class="confidence-badge">
-                    <?= number_format((float)$current_prediction["confidence"], 1) ?>%
-                </span>
-            </p>
-            <p><strong>Predicted Increase:</strong>
-                <?= (int)$current_prediction["predicted_increase"] ?>%
-            </p>
-        </div>
-
-        <div class="prediction-action-box">
-            <strong>Action:</strong>
-            <?= Validator::sanitizeInput($current_prediction["action"]) ?>
-        </div>
-    </div>
-</div>
-
-  <!-- ═══════════════════════════════════════════════════════
-       SMART RISK ANALYSIS
-       ═══════════════════════════════════════════════════════ -->
+  <!-- SMART RISK ANALYSIS (unchanged) -->
   <div id="riskAnalysis" class="anchor-offset mb-3">
     <div class="d-flex align-items-center mb-3" style="gap:12px;">
       <div style="width:5px;height:42px;background:linear-gradient(180deg,#e74c3c,#8e44ad);border-radius:3px;"></div>
@@ -588,9 +694,7 @@ $total_renewal_exp = array_sum(array_column($renewal_patients,'total_claimed'));
       </div>
     </div>
 
-    
-
-    <!-- ══ SECTION 1: FRAUD DETECTION ══════════════════════ -->
+    <!-- FRAUD DETECTION -->
     <div class="card shadow mb-4 accent-fraud anchor-offset" id="fraudDetection">
       <div class="card-header py-3 d-flex align-items-center justify-content-between flex-wrap"
            style="background:linear-gradient(135deg,#fff5f5,#fff);">
@@ -605,7 +709,6 @@ $total_renewal_exp = array_sum(array_column($renewal_patients,'total_claimed'));
         </div>
         <span class="badge badge-danger badge-pill px-3 py-2"><?= count($fraud_patients) ?> Flagged</span>
       </div>
-
       <?php if (!$fraud_patients): ?>
         <div class="card-body text-center text-muted py-4">
           <i class="fas fa-check-circle fa-2x text-success mb-2"></i><br>No fraud flags detected.
@@ -664,16 +767,15 @@ $total_renewal_exp = array_sum(array_column($renewal_patients,'total_claimed'));
             </tbody>
           </table>
         </div>
-        <div class="insight-box mt-3" style="background:#fff8f8;border-left:4px solid #e74c3c;">
+        <div class="mt-3 p-3 rounded" style="background:#fff8f8;border-left:4px solid #e74c3c;font-size:.84rem;">
           <strong class="text-danger"><i class="fas fa-lightbulb mr-1"></i>Action:</strong>
           Patients with ≥6 admissions should have claims placed on hold pending a full case audit.
-          Cross-check checkin/checkout dates for overlap or unusual patterns.
         </div>
       </div>
       <?php endif; ?>
     </div>
 
-    <!-- ══ SECTION 2: POLICY RENEWAL PRICING ═══════════════ -->
+    <!-- POLICY RENEWAL PRICING -->
     <div class="card shadow mb-4 accent-renew anchor-offset" id="policyRenewal">
       <div class="card-header py-3 d-flex align-items-center justify-content-between flex-wrap"
            style="background:linear-gradient(135deg,#fdf8ff,#fff);">
@@ -688,14 +790,12 @@ $total_renewal_exp = array_sum(array_column($renewal_patients,'total_claimed'));
         </div>
         <span class="badge badge-pill px-3 py-2" style="background:#8e44ad;color:#fff;"><?= count($renewal_patients) ?> Expiring Soon</span>
       </div>
-
       <?php if (!$renewal_patients): ?>
         <div class="card-body text-center text-muted py-4">
           <i class="fas fa-check-circle fa-2x text-success mb-2"></i><br>No policies expiring within 90 days.
         </div>
       <?php else: ?>
       <div class="card-body">
-        <!-- Mini KPI summary -->
         <div class="row mb-4">
           <div class="col-md-4">
             <div class="p-3 rounded text-center" style="background:#fdf5ff;border:1px solid #e8d5f5;">
@@ -716,8 +816,6 @@ $total_renewal_exp = array_sum(array_column($renewal_patients,'total_claimed'));
             </div>
           </div>
         </div>
-
-        <!-- Charts row -->
         <div class="row mb-3">
           <div class="col-md-5 mb-3">
             <div class="chart-wrap">
@@ -738,8 +836,6 @@ $total_renewal_exp = array_sum(array_column($renewal_patients,'total_claimed'));
             </div>
           </div>
         </div>
-
-        <!-- Table -->
         <div class="table-responsive">
           <table class="table table-hover table-sm mb-0" style="font-size:.87rem;">
             <thead style="background:#fdf5ff;">
@@ -788,11 +884,9 @@ $total_renewal_exp = array_sum(array_column($renewal_patients,'total_claimed'));
             </tbody>
           </table>
         </div>
-        <div class="insight-box mt-3" style="background:#fdf8ff;border-left:4px solid #8e44ad;">
+        <div class="mt-3 p-3 rounded" style="background:#fdf8ff;border-left:4px solid #8e44ad;font-size:.84rem;">
           <strong style="color:#8e44ad;"><i class="fas fa-lightbulb mr-1"></i>Action:</strong>
-          Patients flagged <strong>"Raise Premium +20%"</strong> have high risk scores or multiple chronic conditions —
-          adjust renewal rates before expiry.
-          <strong>"Standard Renewal"</strong> patients can be auto-renewed without manual review.
+          Patients flagged <strong>"Raise Premium +20%"</strong> have high risk scores or multiple chronic conditions — adjust renewal rates before expiry.
         </div>
       </div>
       <?php endif; ?>
@@ -815,19 +909,6 @@ $total_renewal_exp = array_sum(array_column($renewal_patients,'total_claimed'));
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
 
 <script>
-const fraudNames      = <?= json_encode(array_values($fraud_names)) ?>;
-const fraudAdmissions = <?= json_encode(array_values($fraud_admissions)) ?>;
-const fraudClaimed    = <?= json_encode(array_values($fraud_claimed)) ?>;
-const fraudPending    = <?= json_encode(array_values($fraud_pending)) ?>;
-
-const renNames = <?= json_encode(array_values($ren_names)) ?>;
-const renDays  = <?= json_encode(array_values($ren_days)) ?>;
-const renRisk  = <?= json_encode(array_values($ren_risk)) ?>;
-
-const raiseCount    = <?= (int)$raise_c ?>;
-const reviewCount   = <?= (int)$review_c ?>;
-const standardCount = <?= (int)$std_c ?>;
-
 Chart.defaults.font.family = "'Nunito', sans-serif";
 Chart.defaults.font.size   = 11;
 Chart.defaults.color       = '#666';
@@ -839,120 +920,130 @@ function makeChart(id, config) {
   if (el && el.getContext) new Chart(el, config);
 }
 
+// ── ML Coverage History Chart ─────────────────────────────────────────────────
+<?php
+$hist        = $ml_forecast["history"]     ?? [];
+$hist_years  = $hist["years"]              ?? [];
+$hist_cov    = $hist["coverage"]           ?? [];
+$hist_growth = $hist["growth"]             ?? [];
+// Add forecast bar for next year
+$forecast_year = $ml_year;
+$last_cov      = end($hist_cov) ?: 0;
+$forecast_cov  = $last_cov > 0 ? round($last_cov * (1 + $ml_blended/100), 2) : 0;
+$chart_years   = array_merge($hist_years, [$forecast_year]);
+$chart_cov     = array_merge($hist_cov,   [$forecast_cov]);
+$is_forecast   = array_fill(0, count($hist_years), false);
+$is_forecast[] = true;
+?>
+const histYears   = <?= json_encode(array_map('strval', $chart_years)) ?>;
+const histCov     = <?= json_encode(array_values($chart_cov)) ?>;
+const isForecast  = <?= json_encode(array_values($is_forecast)) ?>;
 
+makeChart('coverageHistoryChart', {
+  type: 'bar',
+  data: {
+    labels: histYears,
+    datasets: [{
+      label: 'Total Coverage (EGP)',
+      data: histCov,
+      backgroundColor: isForecast.map(f => f ? 'rgba(78,115,223,0.4)' : 'rgba(28,200,138,0.7)'),
+      borderColor:     isForecast.map(f => f ? '#4e73df' : '#1cc88a'),
+      borderWidth: 2,
+      borderRadius: 6,
+      borderDash: isForecast.map(f => f ? [5,5] : []),
+    }]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        callbacks: {
+          label: ctx => {
+            const v = ctx.raw;
+            const label = isForecast[ctx.dataIndex] ? '📈 Forecast: ' : 'Coverage: ';
+            return label + 'EGP ' + v.toLocaleString();
+          }
+        }
+      }
+    },
+    scales: {
+      y: { beginAtZero: false, grid:{color:'#f0f0f0'},
+           ticks:{callback: v => 'EGP ' + (v/1000000).toFixed(1)+'M'} },
+      x: { grid:{display:false} }
+    }
+  }
+});
 
-// Chart 1A: Fraud admissions
+// ── Fraud + Renewal Charts ────────────────────────────────────────────────────
+const fraudNames      = <?= json_encode(array_values($fraud_names)) ?>;
+const fraudAdmissions = <?= json_encode(array_values($fraud_admissions)) ?>;
+const fraudClaimed    = <?= json_encode(array_values($fraud_claimed)) ?>;
+const fraudPending    = <?= json_encode(array_values($fraud_pending)) ?>;
+const renNames        = <?= json_encode(array_values($ren_names)) ?>;
+const renDays         = <?= json_encode(array_values($ren_days)) ?>;
+const renRisk         = <?= json_encode(array_values($ren_risk)) ?>;
+const raiseCount      = <?= (int)$raise_c ?>;
+const reviewCount     = <?= (int)$review_c ?>;
+const standardCount   = <?= (int)$std_c ?>;
+
 makeChart('chartFraudAdmissions', {
   type: 'bar',
-  data: {
-    labels: short(fraudNames),
-    datasets: [{
-      label: 'Admissions',
-      data: fraudAdmissions,
-      backgroundColor: fraudAdmissions.map(v =>
-        v>=6?'rgba(192,57,43,.85)':v>=4?'rgba(231,76,60,.75)':'rgba(231,76,60,.45)'),
-      borderColor: '#c0392b', borderWidth: 1, borderRadius: 5
-    }]
-  },
-  options: {
-    responsive:true, maintainAspectRatio:false,
-    plugins:{ legend:{display:false} },
-    scales:{
-      y:{beginAtZero:true,ticks:{stepSize:1},grid:{color:'#f0f0f0'}},
-      x:{grid:{display:false}}
-    }
-  }
+  data: { labels: short(fraudNames),
+    datasets:[{ label:'Admissions', data:fraudAdmissions,
+      backgroundColor: fraudAdmissions.map(v=>v>=6?'rgba(192,57,43,.85)':v>=4?'rgba(231,76,60,.75)':'rgba(231,76,60,.45)'),
+      borderColor:'#c0392b', borderWidth:1, borderRadius:5 }]},
+  options:{responsive:true,maintainAspectRatio:false,
+    plugins:{legend:{display:false}},
+    scales:{y:{beginAtZero:true,ticks:{stepSize:1},grid:{color:'#f0f0f0'}},x:{grid:{display:false}}}}
 });
 
-// Chart 1B: Fraud claimed + pending
 makeChart('chartFraudClaimed', {
-  type: 'bar',
-  data: {
-    labels: short(fraudNames),
-    datasets: [
-      { label:'Claimed (EGP)', data:fraudClaimed, backgroundColor:'rgba(192,57,43,.7)',
-        borderRadius:5, yAxisID:'y' },
-      { label:'Pending Claims', data:fraudPending, backgroundColor:'rgba(243,156,18,.8)',
-        borderRadius:5, yAxisID:'y1' }
-    ]
-  },
-  options: {
-    responsive:true, maintainAspectRatio:false,
-    plugins:{ legend:{position:'top',labels:{boxWidth:10}} },
+  type:'bar',
+  data:{ labels:short(fraudNames),
+    datasets:[
+      {label:'Claimed (EGP)',data:fraudClaimed,backgroundColor:'rgba(192,57,43,.7)',borderRadius:5,yAxisID:'y'},
+      {label:'Pending Claims',data:fraudPending,backgroundColor:'rgba(243,156,18,.8)',borderRadius:5,yAxisID:'y1'}
+    ]},
+  options:{responsive:true,maintainAspectRatio:false,
+    plugins:{legend:{position:'top',labels:{boxWidth:10}}},
     scales:{
-      y: {beginAtZero:true,position:'left', grid:{color:'#f0f0f0'},title:{display:true,text:'EGP'}},
+      y:{beginAtZero:true,position:'left',grid:{color:'#f0f0f0'},title:{display:true,text:'EGP'}},
       y1:{beginAtZero:true,position:'right',grid:{drawOnChartArea:false},ticks:{stepSize:1},title:{display:true,text:'Count'}},
-      x: {grid:{display:false}}
-    }
-  }
+      x:{grid:{display:false}}}}
 });
 
-// Chart 2A: Renewal risk score
 makeChart('chartRenewRisk', {
-  type: 'bar',
-  data: {
-    labels: short(renNames),
-    datasets: [{
-      label:'Risk Score',
-      data: renRisk,
-      backgroundColor: renRisk.map(v =>
-        v>=0.7?'rgba(192,57,43,.8)':v>=0.4?'rgba(243,156,18,.8)':'rgba(39,174,96,.7)'),
-      borderRadius:5
-    }]
-  },
-  options: {
-    indexAxis:'y',
-    responsive:true, maintainAspectRatio:false,
-    plugins:{ legend:{display:false} },
-    scales:{
-      x:{min:0,max:1,grid:{color:'#f0f0f0'},ticks:{callback:v=>(v*100)+'%'}},
-      y:{grid:{display:false}}
-    }
-  }
+  type:'bar',
+  data:{labels:short(renNames),
+    datasets:[{label:'Risk Score',data:renRisk,
+      backgroundColor:renRisk.map(v=>v>=0.7?'rgba(192,57,43,.8)':v>=0.4?'rgba(243,156,18,.8)':'rgba(39,174,96,.7)'),
+      borderRadius:5}]},
+  options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,
+    plugins:{legend:{display:false}},
+    scales:{x:{min:0,max:1,grid:{color:'#f0f0f0'},ticks:{callback:v=>(v*100)+'%'}},y:{grid:{display:false}}}}
 });
 
-// Chart 2B: Days until expiry
 makeChart('chartRenewDays', {
-  type: 'bar',
-  data: {
-    labels: short(renNames),
-    datasets: [{
-      label:'Days Until Expiry',
-      data: renDays,
-      backgroundColor: renDays.map(v =>
-        v<=30?'rgba(192,57,43,.8)':v<=60?'rgba(243,156,18,.8)':'rgba(52,152,219,.7)'),
-      borderRadius:5
-    }]
-  },
-  options: {
-    responsive:true, maintainAspectRatio:false,
-    plugins:{ legend:{display:false} },
-    scales:{
-      y:{beginAtZero:true,grid:{color:'#f0f0f0'},title:{display:true,text:'Days'}},
-      x:{grid:{display:false}}
-    }
-  }
+  type:'bar',
+  data:{labels:short(renNames),
+    datasets:[{label:'Days Until Expiry',data:renDays,
+      backgroundColor:renDays.map(v=>v<=30?'rgba(192,57,43,.8)':v<=60?'rgba(243,156,18,.8)':'rgba(52,152,219,.7)'),
+      borderRadius:5}]},
+  options:{responsive:true,maintainAspectRatio:false,
+    plugins:{legend:{display:false}},
+    scales:{y:{beginAtZero:true,grid:{color:'#f0f0f0'},title:{display:true,text:'Days'}},x:{grid:{display:false}}}}
 });
 
-// Chart 2C: Renewal advice doughnut
 makeChart('chartRenewPie', {
-  type: 'doughnut',
-  data: {
-    labels: ['Raise +20%','Adjust +10%','Standard'],
-    datasets: [{
-      data: [raiseCount, reviewCount, standardCount],
+  type:'doughnut',
+  data:{labels:['Raise +20%','Adjust +10%','Standard'],
+    datasets:[{data:[raiseCount,reviewCount,standardCount],
       backgroundColor:['rgba(192,57,43,.85)','rgba(243,156,18,.85)','rgba(39,174,96,.8)'],
-      borderWidth:2, borderColor:'#fff'
-    }]
-  },
-  options: {
-    responsive:true, maintainAspectRatio:false,
-    cutout:'60%',
-    plugins:{
-      legend:{position:'bottom',labels:{boxWidth:10,padding:8}},
-      tooltip:{callbacks:{label:ctx=>` ${ctx.label}: ${ctx.raw} patients`}}
-    }
-  }
+      borderWidth:2,borderColor:'#fff'}]},
+  options:{responsive:true,maintainAspectRatio:false,cutout:'60%',
+    plugins:{legend:{position:'bottom',labels:{boxWidth:10,padding:8}},
+      tooltip:{callbacks:{label:ctx=>` ${ctx.label}: ${ctx.raw} patients`}}}}
 });
 </script>
 </body>

@@ -197,11 +197,9 @@ INSERT INTO `medical_insurances` (`insurance_id`, `name`, `regulatory_id`, `addr
 (4, 'Allianz', NULL, NULL, NULL, '2026-01-30 05:52:23', 0);
 
 -- --------------------------------------------------------
-
 --
 -- Table structure for table `medical_records`
 --
-
 CREATE TABLE `medical_records` (
   `record_id` int(10) UNSIGNED NOT NULL,
   `patient_id` int(10) UNSIGNED NOT NULL,
