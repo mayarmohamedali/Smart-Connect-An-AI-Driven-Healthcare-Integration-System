@@ -4,7 +4,17 @@
 // $kpi_patients, $kpi_medical_records, $kpi_insured_patients, $kpi_recent_admissions
 // $patients (array with insurance_name from JOIN), $q, $success_msg, $error_msg
 // $auth (Auth)
+// ML: $api_alive (bool), $calendar (array), $live_forecast (array), $records_this_month (int)
 function e($v): string { return htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8'); }
+function severity_color(string $s): string {
+    return match($s) { 'critical' => 'danger', 'high' => 'warning', 'medium' => 'info', default => 'secondary' };
+}
+function severity_icon(string $s): string {
+    return match($s) { 'critical' => '🔴', 'high' => '🟠', 'medium' => '🟡', default => '🟢' };
+}
+$month_names  = ['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+$today_month  = (int)date('n');
+$next_month_n = $today_month % 12 + 1;
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -121,47 +131,214 @@ function e($v): string { return htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8'
     </div>
   </div>
 
-  <!-- EPIDEMIC ALERTS -->
+  <!-- ═══════════════════════════════════════════════════════════════════════ -->
+  <!-- EPIDEMIC ALERT SYSTEM — Live ML integration via EpidemicForecast.php  -->
+  <!-- ═══════════════════════════════════════════════════════════════════════ -->
   <div id="epidemic-alerts" class="anchor-offset mt-4">
-    <h3 class="text-danger section-title mb-3">🏥 Hospital Epidemic Alert System</h3>
-    <div class="card shadow mb-4 border-left-danger">
-      <div class="card-body d-flex align-items-center justify-content-between flex-wrap">
-        <div>
-          <h5 class="font-weight-bold text-danger mb-1">🚨 High Priority Alerts</h5>
-          <p class="mb-0 text-muted">AI-based epidemic predictions for the upcoming period</p>
+
+    <div class="d-flex align-items-center justify-content-between flex-wrap mb-3">
+      <h3 class="text-danger section-title mb-0">🏥 Hospital Epidemic Alert System</h3>
+      <div class="d-flex align-items-center flex-wrap" style="gap:8px;">
+        <?php if (!$api_alive): ?>
+          <span class="badge badge-danger p-2">
+            <i class="fas fa-times-circle mr-1"></i> ML API Offline
+          </span>
+        <?php else: ?>
+          <span class="badge badge-success p-2">
+            <i class="fas fa-check-circle mr-1"></i> ML Model Connected
+          </span>
+        <?php endif; ?>
+        <span class="badge badge-<?= $records_this_month >= 5 ? 'primary' : 'secondary' ?> p2">
+          <i class="fas fa-database mr-1"></i>
+          <?= $records_this_month ?> records this month
+          <?php if ($records_this_month < 10): ?>
+            &mdash; need <?= 10 - $records_this_month ?> more for forecast
+          <?php endif; ?>
+        </span>
+      </div>
+    </div>
+
+    <?php
+      $next_month_label = $month_names[$next_month_n] ?? 'Next Month';
+      $forecast_entry   = null;
+      $forecast_source  = 'none';
+
+      if (!empty($live_forecast)) {
+        if (($live_forecast['status'] ?? '') === 'ok') {
+          $forecast_entry  = $live_forecast;
+          $forecast_source = 'live';
+        } elseif (($live_forecast['status'] ?? '') === 'insufficient_data') {
+          $forecast_source = 'insufficient';
+        }
+      }
+
+      // Fall back to historical baseline from the calendar
+      if (in_array($forecast_source, ['none', 'insufficient'])) {
+        foreach ($calendar as $entry) {
+          if ((int)($entry['month'] ?? 0) === $next_month_n) {
+            $forecast_entry  = $entry;
+            $forecast_source = ($forecast_source === 'insufficient')
+                               ? 'insufficient_with_history' : 'historical';
+            break;
+          }
+        }
+      }
+    ?>
+
+    <?php if (in_array($forecast_source, ['insufficient', 'insufficient_with_history'])): ?>
+      <div class="alert alert-info d-flex align-items-start mb-3" style="gap:12px;">
+        <i class="fas fa-info-circle fa-2x mt-1"></i>
+        <div style="flex:1;">
+          <strong>Collecting patient data for forecast...</strong><br>
+          <small><?= $records_this_month ?> of 20 records needed this month.
+            Showing historical baseline until enough records are collected.</small>
+          <div class="progress mt-2" style="height:8px; border-radius:4px;">
+            <div class="progress-bar bg-info"
+                 style="width:<?= min(100, ($records_this_month / 20) * 100) ?>%"></div>
+          </div>
         </div>
-        <span class="badge badge-danger badge-pill p-3">85 Predictions</span>
+      </div>
+    <?php endif; ?>
+
+    <?php if ($forecast_entry):
+      $disease  = e($forecast_entry['dominant_display'] ?? str_replace('_', ' ', $forecast_entry['dominant_disease'] ?? 'Unknown'));
+      $severity = $forecast_entry['severity'] ?? 'medium';
+      $color    = severity_color($severity);
+      $icon     = severity_icon($severity);
+      $recs     = $forecast_entry['recommendations'] ?? [];
+      $pts_used = $forecast_entry['total_patients'] ?? null;
+    ?>
+    <div class="card shadow mb-4 border-left-<?= $color ?>">
+      <div class="card-body">
+        <div class="d-flex align-items-start justify-content-between flex-wrap mb-2">
+          <div>
+            <h5 class="font-weight-bold text-<?= $color ?> mb-1">
+              <?= $icon ?> <?= $next_month_label ?> Forecast: <?= $disease ?>
+            </h5>
+            <p class="text-muted mb-0" style="font-size:.85rem;">
+              <?php if ($forecast_source === 'live'): ?>
+                <span class="badge badge-success mr-1">LIVE</span>
+                Based on <strong><?= (int)$pts_used ?></strong> real patient records from your database this month
+              <?php else: ?>
+                <span class="badge badge-secondary mr-1">HISTORICAL</span>
+                Trained model baseline &mdash; add more medical records this month to get a live prediction
+              <?php endif; ?>
+              &nbsp;&middot;&nbsp;
+              Severity: <span class="badge badge-<?= $color ?>"><?= ucfirst($severity) ?></span>
+            </p>
+          </div>
+          <span class="badge badge-<?= $color ?> badge-pill p-2" style="font-size:1rem;">
+            <?= strtoupper($next_month_label) ?>
+          </span>
+        </div>
+
+        <?php if (!empty($forecast_entry['distribution_pct'])): ?>
+          <hr class="my-2">
+          <p class="mb-2" style="font-size:.78rem; font-weight:800; color:#555; text-transform:uppercase; letter-spacing:.5px;">
+            Predicted disease distribution for <?= $next_month_label ?>
+          </p>
+          <?php foreach ($forecast_entry['distribution_pct'] as $dis => $pct):
+            $dis_label   = str_replace('_', ' ', $dis);
+            $pct_float   = (float)$pct;
+            $is_dominant = ($dis === ($forecast_entry['dominant_disease'] ?? ''));
+          ?>
+          <div class="d-flex align-items-center mb-1">
+            <div style="min-width:200px; font-size:.8rem; color:#444;">
+              <?= $is_dominant ? '<strong>' : '' ?><?= e($dis_label) ?><?= $is_dominant ? '</strong>' : '' ?>
+            </div>
+            <div class="progress flex-grow-1" style="height:16px; border-radius:6px;">
+              <div class="progress-bar <?= $is_dominant ? 'bg-'.$color : 'bg-secondary' ?>"
+                   role="progressbar"
+                   style="width:<?= min(100, $pct_float) ?>%; font-size:.75rem;">
+                <?= $pct_float ?>%
+              </div>
+            </div>
+            <?php if ($forecast_source === 'live'): ?>
+              <span style="min-width:70px; text-align:right; font-size:.78rem; color:#666; padding-left:8px;">
+                <?= (int)($forecast_entry['distribution'][$dis] ?? 0) ?> patients
+              </span>
+            <?php endif; ?>
+          </div>
+          <?php endforeach; ?>
+        <?php endif; ?>
+
+        <?php if (!empty($recs)): ?>
+          <div class="alert alert-<?= $color ?> py-2 mb-0 mt-3">
+            <strong>🔧 Preparation Checklist for <?= $next_month_label ?>:</strong>
+            <ul class="mb-0 mt-1 pl-4" style="font-size:.85rem;">
+              <?php foreach ($recs as $rec): ?>
+                <li><?= e($rec) ?></li>
+              <?php endforeach; ?>
+            </ul>
+          </div>
+        <?php endif; ?>
       </div>
     </div>
-    <div class="row">
-      <div class="col-lg-6 mb-4">
-        <div class="card shadow h-100 border-left-warning"><div class="card-body">
-          <h5 class="font-weight-bold text-warning">⚠️ ALERT: Hepatic Coma</h5>
-          <ul class="list-unstyled mb-3">
-            <li>📅 <strong>Month:</strong> January</li>
-            <li>📈 <strong>Accuracy percentage:</strong> <span class="badge badge-danger">99.6%</span></li>
-            <li>📊 <strong>Expected Cases:</strong> 3</li>
-          </ul>
-          <div class="alert alert-warning py-2">💡 <strong>Action:</strong> Prepare hepatic coma treatment capacity</div>
-          <h6 class="font-weight-bold mt-3">🏥 Recommendations:</h6>
-          <ul class="mb-0"><li>Review admission patterns</li><li>Ensure adequate general capacity</li></ul>
-        </div></div>
+    <?php endif; ?>
+
+    <!-- Full Year Calendar -->
+    <?php if (!empty($calendar)): ?>
+    <div class="card shadow mb-4">
+      <div class="card-header py-3 d-flex align-items-center justify-content-between">
+        <h6 class="m-0 font-weight-bold text-primary">
+          <i class="fas fa-calendar-alt mr-2"></i> Full-Year Epidemic Forecast Calendar
+        </h6>
+        <small class="text-muted">Trained ML model baseline</small>
       </div>
-      <div class="col-lg-6 mb-4">
-        <div class="card shadow h-100 border-left-warning"><div class="card-body">
-          <h5 class="font-weight-bold text-warning">⚠️ ALERT: Stroke</h5>
-          <ul class="list-unstyled mb-3">
-            <li>📅 <strong>Month:</strong> January</li>
-            <li>📈 <strong>Accuracy percentage:</strong> <span class="badge badge-danger">99.5%</span></li>
-            <li>📊 <strong>Expected Cases:</strong> 6</li>
-          </ul>
-          <div class="alert alert-warning py-2">💡 <strong>Action:</strong> Prepare stroke treatment capacity</div>
-          <h6 class="font-weight-bold mt-3">🏥 Recommendations:</h6>
-          <ul class="mb-0"><li>Review admission patterns</li><li>Ensure ICU &amp; neurology readiness</li></ul>
-        </div></div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover mb-0" style="font-size:.88rem;">
+            <thead class="thead-light">
+              <tr>
+                <th style="width:80px;">Month</th>
+                <th>Dominant Disease</th>
+                <th style="width:110px;">Severity</th>
+                <th>Top Recommendation</th>
+              </tr>
+            </thead>
+            <tbody>
+              <?php foreach ($calendar as $entry):
+                $m_num   = (int)($entry['month'] ?? 0);
+                $m_name  = e($entry['month_name'] ?? '');
+                $dis     = e($entry['dominant_display'] ?? str_replace('_', ' ', $entry['dominant_disease'] ?? ''));
+                $sev     = $entry['severity'] ?? 'medium';
+                $col     = severity_color($sev);
+                $ico     = severity_icon($sev);
+                $rec1    = $entry['recommendations'][0] ?? 'General preparedness recommended.';
+                $is_now  = ($m_num === $today_month);
+                $is_next = ($m_num === $next_month_n);
+              ?>
+              <tr <?= $is_next ? 'class="table-warning font-weight-bold"' : ($is_now ? 'class="table-light"' : '') ?>>
+                <td>
+                  <?= $m_name ?>
+                  <?php if ($is_next): ?>
+                    <span class="badge badge-warning" style="font-size:.6rem;">Next</span>
+                  <?php elseif ($is_now): ?>
+                    <span class="badge badge-primary" style="font-size:.6rem;">Now</span>
+                  <?php endif; ?>
+                </td>
+                <td><?= $ico ?> <?= $dis ?></td>
+                <td><span class="badge badge-<?= $col ?>"><?= ucfirst($sev) ?></span></td>
+                <td style="color:#555; font-size:.82rem;"><?= e($rec1) ?></td>
+              </tr>
+              <?php endforeach; ?>
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
+    <?php endif; ?>
+
+    <?php if (!$api_alive): ?>
+      <div class="alert alert-warning">
+        <i class="fas fa-plug mr-2"></i>
+        <strong>ML API is not running.</strong>
+        Open a terminal in your project folder and run: <code>python app.py</code> — then refresh this page.
+      </div>
+    <?php endif; ?>
+
   </div>
+  <!-- END EPIDEMIC ALERTS -->
 
   <!-- PATIENTS -->
   <div id="patients" class="anchor-offset mt-4">

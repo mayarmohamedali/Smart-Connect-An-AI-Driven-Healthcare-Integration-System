@@ -1,0 +1,5 @@
+Model,Test Accuracy,Test Accuracy (%)
+HistGradientBoosting,0.8578431372549019,85.78
+XGBoost,0.8419117647058824,84.19
+Random Forest,0.717626633986928,71.76
+Decision Tree,0.7038398692810458,70.38

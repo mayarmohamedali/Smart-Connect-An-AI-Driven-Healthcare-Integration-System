@@ -32,8 +32,90 @@ class HospitalController {
         $patients   = $patientObj->getPatientsByHospital($hospital_id, $q) ?? [];
         $success_msg = ''; $error_msg = '';
 
+        // ── ML EPIDEMIC FORECAST ─────────────────────────────────────────────
+        require_once ROOT . '/app/models/EpidemicForecast.php';
+
+        // Pull the last 30 days of medical records for this hospital's patients
+        // and build the patient batch the Flask model expects.
+        // Note: DB stores 'Moderate' for physical activity; ML model expects 'Medium' — mapped below.
+        $stmt = $conn->prepare("
+            SELECT
+                COALESCE(mr.age, 35)                             AS Age,
+                COALESCE(p.gender, 'Male')                       AS Gender,
+                COALESCE(mr.bmi, 25.0)                           AS BMI,
+                COALESCE(mr.systolic_bp, 120)                    AS Blood_Pressure,
+                COALESCE(mr.cholesterol_level, 200)              AS Cholesterol_Level,
+                COALESCE(mr.glucose, 90)                         AS Glucose_Level,
+                COALESCE(mr.smoking_status, 0)                   AS Smoking_Status,
+                COALESCE(mr.physical_activity_level, 'Moderate') AS Physical_Activity,
+                COALESCE(mr.diet_quality, 'Average')             AS Diet_Quality,
+                COALESCE(mr.alcohol_consumption, 0)              AS Alcohol_Consumption,
+                COALESCE(mr.sleep_hours, 7)                      AS Sleep_Hours,
+                COALESCE(mr.stress_level, 5)                     AS Stress_Level,
+                COALESCE(mr.family_history, 0)                   AS Family_History,
+                COALESCE(mr.medications_count, 0)                AS Medications_Count,
+                COALESCE(mr.fever, 0)                            AS Fever,
+                COALESCE(mr.cough, 0)                            AS Cough,
+                COALESCE(mr.fatigue, 0)                          AS Fatigue,
+                COALESCE(mr.chest_pain, 0)                       AS Chest_Pain,
+                COALESCE(mr.shortness_of_breath, 0)              AS Shortness_of_Breath,
+                COALESCE(mr.headache, 0)                         AS Headache,
+                COALESCE(mr.month, MONTH(CURDATE()))             AS Month
+            FROM medical_records mr
+            INNER JOIN patients p ON p.patient_id = mr.patient_id
+            INNER JOIN insurance_hospitals ih ON ih.insurance_id = p.insurance_id
+            WHERE ih.hospital_id = ?
+              AND mr.created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+            LIMIT 500
+        ");
+        $stmt->bind_param('i', $hospital_id);
+        $stmt->execute();
+        $raw_records = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+        $stmt->close();
+
+        $patients_for_forecast = [];
+        foreach ($raw_records as $row) {
+            $pa = $row['Physical_Activity'];
+            if ($pa === 'Moderate') $pa = 'Medium';   // DB→ML field mapping
+
+            $patients_for_forecast[] = [
+                'Age'                 => (float)$row['Age'],
+                'Gender'              => (string)$row['Gender'],
+                'BMI'                 => (float)$row['BMI'],
+                'Blood_Pressure'      => (float)$row['Blood_Pressure'],
+                'Cholesterol_Level'   => (float)$row['Cholesterol_Level'],
+                'Glucose_Level'       => (float)$row['Glucose_Level'],
+                'Smoking_Status'      => (int)$row['Smoking_Status'],
+                'Physical_Activity'   => $pa,
+                'Diet_Quality'        => (string)$row['Diet_Quality'],
+                'Alcohol_Consumption' => (int)$row['Alcohol_Consumption'],
+                'Sleep_Hours'         => (float)$row['Sleep_Hours'],
+                'Stress_Level'        => (float)$row['Stress_Level'],
+                'Family_History'      => (float)$row['Family_History'],
+                'Medications_Count'   => (int)$row['Medications_Count'],
+                'Fever'               => (float)$row['Fever'],
+                'Cough'               => (float)$row['Cough'],
+                'Fatigue'             => (float)$row['Fatigue'],
+                'Chest_Pain'          => (int)$row['Chest_Pain'],
+                'Shortness_of_Breath' => (float)$row['Shortness_of_Breath'],
+                'Headache'            => (int)$row['Headache'],
+                'Month'               => (int)$row['Month'],
+            ];
+        }
+
+        $records_this_month = count($patients_for_forecast);
+
+        $ef          = new EpidemicForecast('http://127.0.0.1:5000');
+        $api_alive   = $ef->isApiAlive();
+        $calendar    = $api_alive ? $ef->getHistoricalCalendar() : [];
+        $live_forecast = [];
+        if ($api_alive && $records_this_month > 0) {
+            $live_forecast = $ef->getNextMonthForecast($patients_for_forecast);
+        }
+        // ────────────────────────────────────────────────────────────────────
+
         require_once ROOT . '/app/views/hospital/dashboard.php';
-       
+        $db->close();
     }
 
     // ── GET /hospital/viewRecords ────────────────────────────────────────────
@@ -95,19 +177,17 @@ class HospitalController {
         }
 
         require_once ROOT . '/app/views/hospital/viewRecords.php';
-        
     }
 
 
     private function fetchInt(mysqli $conn, string $sql, string $types, array $params): int {
-    $stmt = $conn->prepare($sql);
-    $stmt->bind_param($types, ...$params);
-    $stmt->execute();
-    $res = $stmt->get_result()->fetch_row();
-    $stmt->close();
-
-    return (int)($res[0] ?? 0);
-}
+        $stmt = $conn->prepare($sql);
+        $stmt->bind_param($types, ...$params);
+        $stmt->execute();
+        $res = $stmt->get_result()->fetch_row();
+        $stmt->close();
+        return (int)($res[0] ?? 0);
+    }
 
     // ── GET|POST /hospital/addRecord ─────────────────────────────────────────
     public function addRecord(): void {
@@ -196,7 +276,6 @@ class HospitalController {
         }
 
         require_once ROOT . '/app/views/hospital/addRecord.php';
-       
     }
 
     // ── GET|POST /hospital/editRecord ────────────────────────────────────────
@@ -238,19 +317,16 @@ class HospitalController {
 
         if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'update_record') {
             $medObj = new MedicalRecord($conn);
-            // Load existing to set patient_id and record_id
             $medObj->loadById($record_id);
-            // Now call update — reuse the flat SQL approach from original for simplicity
             $this->performUpdate($conn, $record_id, $patient_id, $_POST);
             header('Location: ' . BASE_URL . '/hospital/editRecord?patient_id=' . $patient_id . '&record_id=' . $record_id . '&success=1');
             exit;
         }
 
         require_once ROOT . '/app/views/hospital/editRecord.php';
-        
     }
 
- 
+
     private function performUpdate(mysqli $conn, int $record_id, int $patient_id, array $p): void {
 
         function ni2($v) {
@@ -258,14 +334,12 @@ class HospitalController {
             return $v === '' ? null : $v;
         }
 
-        // Raw values
         $hb1=$p['cbc_hb1']??null; $hb2=$p['cbc_hb2']??null;
         $tl1=$p['cbc_tlc1']??null; $tl2=$p['cbc_tlc2']??null;
         $pl1=$p['cbc_plat1']??null; $pl2=$p['cbc_plat2']??null;
         $ur1=$p['blood_uria1']??null; $ur2=$p['blood_uria2']??null;
         $cr1=$p['blood_creatinine1']??null; $cr2=$p['blood_creatinine2']??null;
 
-        // Calculations
         $avg_hb  = ($hb1!==null&&$hb2!==null)  ? round(((float)$hb1+(float)$hb2)/2,3)  : null;
         $avg_tlc = ($tl1!==null&&$tl2!==null)  ? round(((float)$tl1+(float)$tl2)/2,3)  : null;
         $avg_plat= ($pl1!==null&&$pl2!==null)  ? round(((float)$pl1+(float)$pl2)/2,3)  : null;
@@ -280,7 +354,6 @@ class HospitalController {
 
         $smoke = ($p['smoking_status']??'') === '' ? null : (int)$p['smoking_status'];
 
-        // ✅ IMPORTANT: Convert everything to variables
         $age = (int)($p['age'] ?? 0);
         $checkin_date = ni2($p['checkin_date']);
         $checkout_date = ni2($p['checkout_date']);
@@ -324,7 +397,6 @@ class HospitalController {
         $diagnosis = ni2($p['diagnosis']);
         $disease = ni2($p['disease_category']);
 
-        // SQL
         $sql = "UPDATE medical_records SET
             age=?,checkin_date=?,checkout_date=?,length_of_stay=?,avg_length_stay=?,
             month=?,year=?,day_of_week=?,admission_count=?,
@@ -341,9 +413,7 @@ class HospitalController {
             WHERE record_id=? AND patient_id=?";
 
         $stmt = $conn->prepare($sql);
-
-        $types = str_repeat('s',56).'ii';
-
+        $types = str_repeat('s', 56) . 'ii';
         $stmt->bind_param($types,
             $age,$checkin_date,$checkout_date,$length_of_stay,$avg_length_stay,
             $month,$year,$day_of_week,$admission_count,
@@ -358,9 +428,7 @@ class HospitalController {
             $diagnosis,$disease,
             $record_id,$patient_id
         );
-
         $stmt->execute();
         $stmt->close();
     }
-
 }
