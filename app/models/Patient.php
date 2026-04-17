@@ -1,8 +1,5 @@
 <?php
-/**
- * Patient Class - CORRECTED
- * ✅ FIXED: Removed references to non-existent 'added_by_hospital_id' column
- */
+
 class Patient {
     private $conn;
     private $patient_id;

@@ -1,9 +1,5 @@
 <?php
-/**
- * Hospital Class - CORRECTED
- * ✅ FIXED: Removed references to non-existent 'added_by_hospital_id' column
- * Uses insurance_hospitals relationship instead
- */
+
 class Hospital {
     private $conn;
     private $hospital_id;
@@ -38,12 +34,7 @@ class Hospital {
         return false;
     }
     
-    /**
-     * Get total patients accessible by this hospital
-     * ✅ FIXED: Uses insurance_hospitals relationship instead of added_by_hospital_id
-     * 
-     * Counts patients whose insurance is contracted with this hospital
-     */
+   
     public function getKPIPatients() {
         $stmt = $this->conn->prepare("
             SELECT COUNT(DISTINCT p.patient_id)

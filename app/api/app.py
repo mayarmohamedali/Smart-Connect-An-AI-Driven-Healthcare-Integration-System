@@ -23,8 +23,8 @@ CORS(app)
 # ═══════════════════════════════════════════════════════════════════════════════
 #  PATHS
 # ═══════════════════════════════════════════════════════════════════════════════
-BASE_DIR            = os.path.dirname(__file__)           # app/api/
-_MODELS_DIR         = os.path.join(BASE_DIR, "..", "models")             # app/models/
+BASE_DIR            = os.path.dirname(__file__)
+_MODELS_DIR         = os.path.join(BASE_DIR, "..", "models")
 HOSPITAL_MODEL_DIR  = os.path.join(_MODELS_DIR, "hospital_model_artifacts")
 INSURANCE_MODEL_DIR = os.path.join(_MODELS_DIR, "insurance_model_artifacts")
 
@@ -57,7 +57,6 @@ DB_CONFIG = {
 
 def get_connection():
     return pymysql.connect(**DB_CONFIG)
-
 def get_latest_patient_record(patient_id):
     sql = """
     SELECT
@@ -107,7 +106,6 @@ def build_prediction(record):
     short_term_measures = []
     long_term_measures  = []
 
-    # Rule 1: Kidney Disease
     if creat2 >= 2.0 or creat1 >= 2.0:
         predicted_disease = "Kidney Disease"
         disease_category  = "Renal"
@@ -121,7 +119,6 @@ def build_prediction(record):
                                "Renal-friendly diet plan",
                                "Periodic creatinine and urea monitoring"]
 
-    # Rule 2: Heart Disease
     elif chest_pain == 1 or shortness >= 1:
         predicted_disease = "Heart Disease"
         disease_category  = "Cardiovascular"
@@ -136,7 +133,6 @@ def build_prediction(record):
                                "Regular cardiac follow-up",
                                "Cholesterol and blood pressure control"]
 
-    # Rule 3: Diabetes
     elif glucose >= 126:
         predicted_disease = "Diabetes Mellitus"
         disease_category  = "Metabolic"
@@ -150,7 +146,6 @@ def build_prediction(record):
                                "Maintain healthy BMI",
                                "Regular endocrinologist follow-up"]
 
-    # Rule 4: Hypertension
     elif systolic_bp >= 140:
         predicted_disease = "Hypertension"
         disease_category  = "Cardiovascular"
@@ -163,7 +158,6 @@ def build_prediction(record):
                                "Regular exercise",
                                "Routine blood pressure follow-up"]
 
-    # Rule 5: Headache
     elif headache == 1:
         predicted_disease = "Headache"
         disease_category  = "Neurological"
@@ -174,7 +168,6 @@ def build_prediction(record):
         long_term_measures  = ["Improve sleep routine", "Manage stress",
                                "Neurology follow-up if recurrent"]
 
-    # Rule 6: General illness
     elif fatigue >= 1 or fever >= 1 or cough >= 1:
         predicted_disease = "General Illness"
         disease_category  = "General"
@@ -185,7 +178,6 @@ def build_prediction(record):
         long_term_measures  = ["Maintain healthy sleep schedule",
                                "Balanced diet", "Routine health follow-up"]
 
-    # Rule 7: Healthy
     else:
         predicted_disease   = "Healthy"
         disease_category    = "General"
@@ -351,7 +343,6 @@ def predict_next_month_dominant_disease(patient_list, _artifacts, min_patients=5
             "source"           : "historical_fallback",
         }
 
-# Load hospital artifacts at startup
 try:
     _HOSP_ARTIFACTS = load_hospital_artifacts()
     print("✅ Hospital model loaded")
@@ -484,36 +475,87 @@ def load_insurance_artifacts(model_dir=INSURANCE_MODEL_DIR):
     return {"model": model, "features": features, "profiles": profiles,
             "meta": meta, "baseline": baseline, "forecast": forecast}
 
+# ─────────────────────────────────────────────────────────────────────────────
+# FIX 1 + 2 + 3: get_company_forecast_from_artifacts()
+#
+# ORIGINAL BUGS:
+#   1. history["coverage"] contained Total_Coverage_Sum (EGP monetary values).
+#      The chart Y-axis therefore showed raw currency totals, not percentages.
+#   2. history["growth"] was passed to the template but the PHP/JS chart only
+#      used history["coverage"], so the YoY % growth series was never plotted
+#      and historical data appeared to be "missing".
+#   3. ML_Change_Pct / Trend_Change_Pct were correctly read from the CSV, but
+#      the history object mismatch caused the chart to render incorrectly,
+#      making the overall prediction appear wrong.
+#
+# THE FIX:
+#   • Build history as a list of {year, yoy_pct} records — exactly matching
+#     the notebook's get_company_forecast() format (Cell 12).
+#   • The first year (2021) has no lag-1 value so yoy_pct is null/None — we
+#     skip it to avoid a gap at the left edge of the chart.
+#   • Also expose ML_Change_Pct and Trend_Change_Pct at the top level so
+#     the PHP template can display them in the three-box breakdown without
+#     digging into nested dicts.
+# ─────────────────────────────────────────────────────────────────────────────
 def get_company_forecast_from_artifacts(company_name, arts):
-    """Read saved forecast CSV — fast, no re-prediction."""
+    """
+    Read the saved forecast CSV and return a consistent response dict.
+
+    History format (FIXED):
+        history = [{"year": 2022, "yoy_pct": 7.4}, {"year": 2023, ...}, ...]
+        — year-over-year % growth, skipping the first year (no lag available).
+        This matches the notebook's get_company_forecast() exactly and drives
+        a percentage-based chart on the frontend.
+    """
     fc  = arts["forecast"]
     row = fc[fc["Insurance_Company"] == company_name]
     if row.empty:
         return {"error": f"No forecast found for: {company_name}"}
-    r       = row.iloc[0]
-    blended = float(r.get("Blended_Change_Pct", r.get("blended_change_pct", 0)))
-    lower   = float(r.get("Lower_Pct",          r.get("lower_pct",  blended)))
-    upper   = float(r.get("Upper_Pct",          r.get("upper_pct",  blended)))
-    hist    = arts["baseline"]
-    co_hist = hist[hist["Insurance_Company"] == company_name].sort_values("Year_int")
-    history_chart = sanitize_for_json({
-        "years"    : co_hist["Year_int"].tolist(),
-        "coverage" : co_hist["Total_Coverage_Sum"].round(2).tolist(),
-        "growth"   : co_hist["Coverage_Growth_Lag1"].round(2).tolist(),
-    })
+
+    r           = row.iloc[0]
+    blended     = float(r.get("Blended_Change_Pct", r.get("blended_change_pct", 0)))
+    lower       = float(r.get("Lower_Pct",          r.get("lower_pct",  blended)))
+    upper       = float(r.get("Upper_Pct",          r.get("upper_pct",  blended)))
+    ml_pct      = float(r.get("ML_Change_Pct",      r.get("ml_change_pct",    blended)))
+    trend_pct   = float(r.get("Trend_Change_Pct",   r.get("trend_change_pct", blended)))
+
+    # --- FIXED: build history as [{year, yoy_pct}] — percentage growth only ---
+    hist        = arts["baseline"]
+    co_hist     = (hist[hist["Insurance_Company"] == company_name]
+                   .sort_values("Year_int"))
+
+    history_list = []
+    for _, hr in co_hist.iterrows():
+        yoy = hr.get("Coverage_Growth_Lag1")
+        # Skip rows where the lag is not available (NaN = first year in series)
+        if yoy is None or (isinstance(yoy, float) and math.isnan(yoy)):
+            continue
+        history_list.append({
+            "year"    : int(hr["Year_int"]),
+            "yoy_pct" : round(float(yoy), 2),
+        })
+
+    # sanitize NaN / Inf just in case
+    history_list = sanitize_for_json(history_list)
+
     return {
         "status"             : "ok",
         "company"            : company_name,
         "predicted_year"     : 2027,
-        "blended_change_pct" : blended,
-        "lower_pct"          : lower,
-        "upper_pct"          : upper,
-        "uncertainty_pp"     : float(r.get("Uncertainty_pp", abs(upper - lower) / 2)),
+        "blended_change_pct" : round(blended,   2),
+        "lower_pct"          : round(lower,     2),
+        "upper_pct"          : round(upper,     2),
+        "uncertainty_pp"     : round(float(r.get("Uncertainty_pp", abs(upper - lower) / 2)), 2),
+        # Expose ML and Trend components at top level for the PHP three-box display
+        "ML_Change_Pct"      : round(ml_pct,    2),
+        "Trend_Change_Pct"   : round(trend_pct, 2),
         "action"             : INSURANCE_ACTIONS.get(company_name,
                                "Review pricing changes and assess claim-cost drivers."),
-        "history"            : history_chart,
+        # FIXED: list of {year, yoy_pct} — percentage history, not monetary sums
+        "history"            : history_list,
         "source"             : "trained_model",
     }
+
 
 def get_live_forecast_from_db(company_name, db_patients, arts):
     MIN_ROWS = 10
@@ -530,8 +572,7 @@ def get_live_forecast_from_db(company_name, db_patients, arts):
         unique_years = df["Year_int"].nunique()
 
         if unique_years < 2:
-            # Not enough year diversity — adjust saved forecast with DB cost delta
-            result       = get_company_forecast_from_artifacts(company_name, arts)
+            result        = get_company_forecast_from_artifacts(company_name, arts)
             avg_cost      = float(df["Treatment_Cost"].mean())
             avg_coverage  = float(df["Coverage_Percentage"].clip(0.5, 1.0).mean())
             avg_claim     = float(df["Claim_Amount"].mean())
@@ -565,7 +606,6 @@ def get_live_forecast_from_db(company_name, db_patients, arts):
             })
             return result
 
-        # Full pipeline — enough year diversity
         df_clean = insurance_preprocessing(df)
         annual, pred_df = aggregate_annual(df_clean, arts["features"])
 
@@ -573,33 +613,43 @@ def get_live_forecast_from_db(company_name, db_patients, arts):
             raise ValueError("pred_df is empty or all-NaN after aggregation")
 
         fc  = build_forecast_from_model(arts["model"], annual, pred_df, arts["features"])
-        row = fc[fc["Insurance_Company"] == company_name]
-        if row.empty:
+        fc_row = fc[fc["Insurance_Company"] == company_name]
+        if fc_row.empty:
             raise ValueError("No forecast row produced for this company")
 
-        r       = row.iloc[0]
-        blended = float(r["Blended_Change_Pct"])
-        co_annual = annual[annual["Insurance_Company"] == company_name].sort_values("Year_int")
-        history_chart = sanitize_for_json({
-            "years"    : co_annual["Year_int"].tolist(),
-            "coverage" : co_annual["Total_Coverage_Sum"].round(2).tolist(),
-            "growth"   : co_annual["Coverage_Growth_Lag1"].round(2).tolist(),
-        })
+        r           = fc_row.iloc[0]
+        blended     = float(r["Blended_Change_Pct"])
+        ml_pct      = float(r["ML_Change_Pct"])
+        trend_pct   = float(r["Trend_Change_Pct"])
+
+        # FIXED: same percentage-based history format for live path
+        co_annual   = annual[annual["Insurance_Company"] == company_name].sort_values("Year_int")
+        history_list = []
+        for _, hr in co_annual.iterrows():
+            yoy = hr.get("Coverage_Growth_Lag1")
+            if yoy is None or (isinstance(yoy, float) and math.isnan(yoy)):
+                continue
+            history_list.append({
+                "year"    : int(hr["Year_int"]),
+                "yoy_pct" : round(float(yoy), 2),
+            })
+        history_list = sanitize_for_json(history_list)
+
         return {
             "status"             : "ok",
             "company"            : company_name,
             "predicted_year"     : datetime.date.today().year + 1,
-            "blended_change_pct" : blended,
-            "lower_pct"          : float(r["Lower_Pct"]),
-            "upper_pct"          : float(r["Upper_Pct"]),
-            "uncertainty_pp"     : float(r["Uncertainty_pp"]),
-            "ML_Change_Pct"      : round(float(r["ML_Change_Pct"]),    2),
-            "Trend_Change_Pct"   : round(float(r["Trend_Change_Pct"]), 2),
+            "blended_change_pct" : round(blended,   2),
+            "lower_pct"          : round(float(r["Lower_Pct"]),      2),
+            "upper_pct"          : round(float(r["Upper_Pct"]),      2),
+            "uncertainty_pp"     : round(float(r["Uncertainty_pp"]), 2),
+            "ML_Change_Pct"      : round(ml_pct,    2),
+            "Trend_Change_Pct"   : round(trend_pct, 2),
             "action"             : INSURANCE_ACTIONS.get(company_name,
                                    "Review pricing changes and assess claim-cost drivers."),
             "db_rows"            : len(db_patients),
             "source"             : "live_db",
-            "history"            : history_chart,
+            "history"            : history_list,
             "message"            : f"Live forecast from {len(db_patients)} DB records.",
         }
 
@@ -610,7 +660,6 @@ def get_live_forecast_from_db(company_name, db_patients, arts):
         result["db_rows"]  = len(db_patients)
         return result
 
-# Load insurance artifacts at startup
 try:
     _INS_ARTIFACTS = load_insurance_artifacts()
     print("✅ Insurance model loaded")
@@ -622,7 +671,7 @@ except Exception as e:
 # ═══════════════════════════════════════════════════════════════════════════════
 #  ROUTES — SHARED
 # ═══════════════════════════════════════════════════════════════════════════════
-@app.route("/health",     methods=["GET"])   # keeps old PHP client happy
+@app.route("/health",     methods=["GET"])
 @app.route("/api/health", methods=["GET"])
 def health_check():
     return jsonify({
@@ -707,7 +756,6 @@ def insurance_health():
 
 @app.route("/api/insurance/forecast", methods=["GET"])
 def insurance_forecast_saved():
-    """GET /api/insurance/forecast?company=AXA — fast lookup from saved CSV."""
     if _INS_ARTIFACTS is None:
         return jsonify({"error": "Insurance model not loaded."}), 503
     company = request.args.get("company", "").strip()
@@ -718,7 +766,6 @@ def insurance_forecast_saved():
 
 @app.route("/api/insurance/forecast/live", methods=["POST"])
 def insurance_forecast_live():
-    """POST /api/insurance/forecast/live  Body: { company, patients: [...] }"""
     if _INS_ARTIFACTS is None:
         return jsonify({"error": "Insurance model not loaded."}), 503
     try:
@@ -734,7 +781,6 @@ def insurance_forecast_live():
 
 @app.route("/api/insurance/all", methods=["GET"])
 def insurance_all_companies():
-    """GET /api/insurance/all — saved forecast for all 4 companies (admin view)."""
     if _INS_ARTIFACTS is None:
         return jsonify({"error": "Insurance model not loaded."}), 503
     results = []

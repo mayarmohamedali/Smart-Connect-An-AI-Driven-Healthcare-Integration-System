@@ -1,8 +1,5 @@
 <?php
-/**
- * InsuranceForecast — Service class that calls the Flask ML API.
- * Place in: app/models/InsuranceForecast.php
- */
+
 class InsuranceForecast {
     private string $base_url;
 

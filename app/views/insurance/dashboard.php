@@ -1,6 +1,16 @@
 <?php
 /**
- * Insurance Dashboard View
+ * Insurance Dashboard View  — FIXED chart section
+ *
+ * Changes vs original:
+ *   1. History is now [{year, yoy_pct}] — % growth, not EGP sums.
+ *      PHP extracts $hist_years and $hist_growth from this list format.
+ *   2. The Chart.js dataset now plots YoY % growth values on a % Y-axis.
+ *   3. A forecast bar for $ml_year is appended using $ml_blended so the
+ *      predicted point is visible alongside the historical series.
+ *   4. ML_Change_Pct and Trend_Change_Pct are read from top-level keys
+ *      (also present in the live-DB response now).
+ *
  * Variables provided by InsuranceController::dashboard()
  *
  * $insurance_name, $insurance_id
@@ -200,7 +210,7 @@
           <div class="card ml-prediction-card h-100">
             <div class="card-header py-3 d-flex align-items-center justify-content-between">
               <h6 class="m-0 font-weight-bold text-success">
-                <i class="fas fa-chart-line mr-2"></i>Coverage History &amp; Forecast
+                <i class="fas fa-chart-line mr-2"></i>YoY Coverage Growth History &amp; Forecast
               </h6>
               <small class="text-muted">
                 <?= $ml_source === 'live_db'
@@ -209,11 +219,19 @@
               </small>
             </div>
             <div class="card-body">
+              <!-- Three-box breakdown -->
               <div class="row mb-3">
                 <div class="col-md-4 text-center">
                   <div style="background:#f8f9fc;border-radius:8px;padding:12px 8px;">
                     <div style="font-size:1.4rem;font-weight:800;color:#4e73df;">
-                      <?= $ml_forecast['ML_Change_Pct'] ?? number_format($ml_blended, 1) ?>%
+                      <?php
+                        // FIX: read ML_Change_Pct from the top-level key
+                        // (was previously: $ml_forecast['ML_Change_Pct'] — still works,
+                        //  but now also populated on live-DB responses)
+                        echo isset($ml_forecast['ML_Change_Pct'])
+                             ? number_format((float)$ml_forecast['ML_Change_Pct'], 1) . '%'
+                             : number_format($ml_blended, 1) . '%';
+                      ?>
                     </div>
                     <div style="font-size:.72rem;color:#888;text-transform:uppercase;">ML Prediction</div>
                   </div>
@@ -221,7 +239,12 @@
                 <div class="col-md-4 text-center">
                   <div style="background:#f8f9fc;border-radius:8px;padding:12px 8px;">
                     <div style="font-size:1.4rem;font-weight:800;color:#1cc88a;">
-                      <?= $ml_forecast['Trend_Change_Pct'] ?? '—' ?>%
+                      <?php
+                        // FIX: read Trend_Change_Pct from the top-level key
+                        echo isset($ml_forecast['Trend_Change_Pct'])
+                             ? number_format((float)$ml_forecast['Trend_Change_Pct'], 1) . '%'
+                             : '—';
+                      ?>
                     </div>
                     <div style="font-size:.72rem;color:#888;text-transform:uppercase;">Historical Trend</div>
                   </div>
@@ -584,44 +607,87 @@ function makeChart(id, config) {
 }
 
 <?php
-// Coverage history chart data
-$hist        = $ml_forecast['history']  ?? [];
-$hist_years  = $hist['years']           ?? [];
-$hist_cov    = $hist['coverage']        ?? [];
-$forecast_cov  = [];
-$last_cov      = end($hist_cov) ?: 0;
-$chart_years   = array_merge(array_map('strval', $hist_years), [(string)$ml_year]);
-$chart_cov     = array_merge($hist_cov, [$last_cov > 0 ? round($last_cov * (1 + $ml_blended/100), 2) : 0]);
-$is_forecast   = array_merge(array_fill(0, count($hist_years), false), [true]);
+/*
+ * FIX 1 + 2: Build chart data from the new history format.
+ *
+ * OLD (broken):
+ *   $hist = $ml_forecast['history'];       // was {years:[], coverage:[], growth:[]}
+ *   $hist_cov = $hist['coverage'];         // EGP sums — wrong unit for the chart
+ *   chart plotted $hist_cov on Y-axis      // → monetary values displayed
+ *   $hist['growth'] existed but was never plotted → historical data "missing"
+ *
+ * NEW (fixed):
+ *   $ml_forecast['history'] is now [{year, yoy_pct}, ...]
+ *   We extract parallel $chart_years and $chart_growth arrays from it.
+ *   A forecast point is appended for $ml_year using $ml_blended.
+ *   The Y-axis now shows % values with a '%' tick callback.
+ */
+$history_items = $ml_forecast['history'] ?? [];   // [{year, yoy_pct}, ...]
+
+$chart_years  = [];
+$chart_growth = [];
+foreach ($history_items as $item) {
+    if (isset($item['year'], $item['yoy_pct']) && $item['yoy_pct'] !== null) {
+        $chart_years[]  = (string)$item['year'];
+        $chart_growth[] = (float)$item['yoy_pct'];
+    }
+}
+
+// Append the forecast point so it appears as a distinct bar on the right
+$chart_years[]     = (string)$ml_year;
+$chart_growth[]    = (float)$ml_blended;
+
+// Flag which bars are forecast vs history — used for color coding
+$is_forecast = array_fill(0, count($chart_years) - 1, false);
+$is_forecast[] = true;   // last point is the forecast
 ?>
 const histYears  = <?= json_encode(array_values($chart_years)) ?>;
-const histCov    = <?= json_encode(array_values($chart_cov)) ?>;
+const histGrowth = <?= json_encode(array_values($chart_growth)) ?>;
 const isForecast = <?= json_encode(array_values($is_forecast)) ?>;
 
+/*
+ * FIX 1: Y-axis now shows percentage values (YoY % coverage growth).
+ * FIX 2: All historical bars are now rendered — they come from histGrowth,
+ *         which is populated from the [{year, yoy_pct}] history list.
+ * FIX 3: The forecast bar value equals blended_change_pct from the model,
+ *         so what is displayed matches the number in the prediction card.
+ */
 makeChart('coverageHistoryChart', {
   type: 'bar',
   data: {
     labels: histYears,
     datasets: [{
-      label: 'Total Coverage (EGP)',
-      data: histCov,
-      backgroundColor: isForecast.map(f => f ? 'rgba(78,115,223,0.4)' : 'rgba(28,200,138,0.7)'),
-      borderColor:     isForecast.map(f => f ? '#4e73df' : '#1cc88a'),
-      borderWidth: 2, borderRadius: 6,
+      label: 'YoY Coverage Growth (%)',
+      data: histGrowth,
+      backgroundColor: isForecast.map(f => f ? 'rgba(78,115,223,0.5)' : 'rgba(28,200,138,0.7)'),
+      borderColor:     isForecast.map(f => f ? '#4e73df'               : '#1cc88a'),
+      borderWidth: 2,
+      borderRadius: 6,
     }]
   },
   options: {
-    responsive: true, maintainAspectRatio: false,
+    responsive: true,
+    maintainAspectRatio: false,
     plugins: {
       legend: { display: false },
-      tooltip: { callbacks: { label: ctx => {
-        const label = isForecast[ctx.dataIndex] ? '📈 Forecast: ' : 'Coverage: ';
-        return label + 'EGP ' + ctx.raw.toLocaleString();
-      }}}
+      tooltip: {
+        callbacks: {
+          label: ctx => {
+            const label = isForecast[ctx.dataIndex] ? '📈 Forecast: ' : 'Growth: ';
+            return label + ctx.raw.toFixed(1) + '%';
+          }
+        }
+      }
     },
     scales: {
-      y: { beginAtZero: false, grid:{color:'#f0f0f0'}, ticks:{callback: v => 'EGP '+(v/1000000).toFixed(1)+'M'} },
-      x: { grid:{display:false} }
+      y: {
+        beginAtZero: false,
+        grid: { color: '#f0f0f0' },
+        // FIX 1: Y-axis tick shows % symbol instead of raw EGP value
+        ticks: { callback: v => v.toFixed(1) + '%' },
+        title: { display: true, text: 'YoY Growth (%)', font: { size: 10 } }
+      },
+      x: { grid: { display: false } }
     }
   }
 });

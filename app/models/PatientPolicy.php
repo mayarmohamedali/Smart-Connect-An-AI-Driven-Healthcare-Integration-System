@@ -1,9 +1,5 @@
 <?php
-/**
- * PatientPolicy Class - FINAL FIXED VERSION
- * ✅ Matches your database schema
- * ✅ Uses insurance_plan.id (NOT plan_id)
- */
+
 
 class PatientPolicy {
 
