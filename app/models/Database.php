@@ -18,11 +18,12 @@ class Database {
         return $this->conn;
     }
 
-    // Optional: keep it safe if ever used
     public function close(): void {
         if (isset($this->conn) && $this->conn instanceof mysqli) {
-            if (@$this->conn->ping()) {
+            try {
                 $this->conn->close();
+            } catch (Throwable $e) {
+                // Already closed — nothing to do
             }
         }
     }

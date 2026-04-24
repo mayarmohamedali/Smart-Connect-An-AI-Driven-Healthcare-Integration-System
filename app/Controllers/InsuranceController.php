@@ -285,7 +285,7 @@ class InsuranceController {
                 $policyObj->setEndDate($end_date === '' ? null : $end_date);
                 $policyObj->setStatus($status);
                 if ($policyObj->create()) { $success = 'Patient policy added successfully ✅'; }
-                else { $error = 'Failed to create policy'; }
+                else { $error = $policyObj->getLastError() ?: 'Failed to create policy. Please try again.'; }
             }
         }
 

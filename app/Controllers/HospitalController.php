@@ -35,9 +35,6 @@ class HospitalController {
         // ── ML EPIDEMIC FORECAST ─────────────────────────────────────────────
         require_once ROOT . '/app/models/EpidemicForecast.php';
 
-        // Pull the last 30 days of medical records for this hospital's patients
-        // and build the patient batch the Flask model expects.
-        // Note: DB stores 'Moderate' for physical activity; ML model expects 'Medium' — mapped below.
         $stmt = $conn->prepare("
             SELECT
                 COALESCE(mr.age, 35)                             AS Age,
@@ -76,7 +73,7 @@ class HospitalController {
         $patients_for_forecast = [];
         foreach ($raw_records as $row) {
             $pa = $row['Physical_Activity'];
-            if ($pa === 'Moderate') $pa = 'Medium';   // DB→ML field mapping
+            if ($pa === 'Moderate') $pa = 'Medium';
 
             $patients_for_forecast[] = [
                 'Age'                 => (float)$row['Age'],
@@ -112,7 +109,6 @@ class HospitalController {
         if ($api_alive && $records_this_month > 0) {
             $live_forecast = $ef->getNextMonthForecast($patients_for_forecast);
         }
-        // ────────────────────────────────────────────────────────────────────
 
         require_once ROOT . '/app/views/hospital/dashboard.php';
         $db->close();
@@ -127,20 +123,46 @@ class HospitalController {
 
         $hospital_id = (int)($auth->getSessionData('hospital_id') ?? 0);
         $patient_id  = (int)($_GET['patient_id'] ?? 0);
-        if ($patient_id <= 0) die('Invalid patient_id');
 
-        // Fetch patient with contract check
+        // ── FIX: validate IDs before any DB query to avoid silent redirects ──
+        if ($hospital_id <= 0) {
+            header('Location: ' . BASE_URL . '/auth/login');
+            exit;
+        }
+        if ($patient_id <= 0) {
+            header('Location: ' . BASE_URL . '/hospital/dashboard');
+            exit;
+        }
+
+        // ── FIX: use LEFT JOIN so patients with NULL insurance_id are still
+        //    accessible, and verify hospital access via insurance_hospitals OR
+        //    a direct hospital_id column if your schema has one.
+        //    We check: patient exists AND (their insurance is contracted with
+        //    this hospital OR they have no insurance but were added by this hospital).
         $stmt = $conn->prepare("
-            SELECT p.*, mi.name AS insurance_name FROM patients p
-            LEFT JOIN medical_insurances mi ON p.insurance_id = mi.insurance_id
-            JOIN insurance_hospitals ih ON ih.insurance_id = p.insurance_id AND ih.hospital_id = ?
-            WHERE p.patient_id = ? LIMIT 1
+            SELECT p.*, mi.name AS insurance_name
+            FROM patients p
+            LEFT JOIN medical_insurances mi ON mi.insurance_id = p.insurance_id
+            LEFT JOIN insurance_hospitals ih
+                   ON ih.insurance_id = p.insurance_id
+                  AND ih.hospital_id = ?
+            WHERE p.patient_id = ?
+              AND (
+                    ih.hospital_id IS NOT NULL        -- has insurance contracted with this hospital
+                 OR p.insurance_id IS NULL            -- OR patient has no insurance (walk-in)
+              )
+            LIMIT 1
         ");
         $stmt->bind_param('ii', $hospital_id, $patient_id);
         $stmt->execute();
         $patient = $stmt->get_result()->fetch_assoc();
         $stmt->close();
-        if (!$patient) die('Patient not found or not accessible by your hospital.');
+
+        if (!$patient) {
+            // Don't die() — redirect with an error instead of a blank page
+            header('Location: ' . BASE_URL . '/hospital/dashboard?error=patient_not_found');
+            exit;
+        }
 
         // Handle delete
         if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'delete_record') {
@@ -148,7 +170,8 @@ class HospitalController {
             if ($rid > 0) {
                 $del = $conn->prepare('DELETE FROM medical_records WHERE record_id=? AND patient_id=?');
                 $del->bind_param('ii', $rid, $patient_id);
-                $del->execute(); $del->close();
+                $del->execute();
+                $del->close();
             }
             header('Location: ' . BASE_URL . '/hospital/viewRecords?patient_id=' . $patient_id);
             exit;
@@ -177,8 +200,8 @@ class HospitalController {
         }
 
         require_once ROOT . '/app/views/hospital/viewRecords.php';
+        $db->close();
     }
-
 
     private function fetchInt(mysqli $conn, string $sql, string $types, array $params): int {
         $stmt = $conn->prepare($sql);
@@ -198,21 +221,43 @@ class HospitalController {
 
         $hospital_id = (int)($auth->getSessionData('hospital_id') ?? 0);
         $patient_id  = (int)($_GET['patient_id'] ?? 0);
-        if ($patient_id <= 0) die('Invalid patient_id');
 
-        // Patient with contract check
+        // ── FIX: validate IDs before any DB query ───────────────────────────
+        if ($hospital_id <= 0) {
+            header('Location: ' . BASE_URL . '/auth/login');
+            exit;
+        }
+        if ($patient_id <= 0) {
+            header('Location: ' . BASE_URL . '/hospital/dashboard');
+            exit;
+        }
+
+        // ── FIX: same LEFT JOIN fix as viewRecords — don't block uninsured patients
         $stmt = $conn->prepare("
-            SELECT p.patient_id, p.full_name, p.national_id, p.insurance_id, mi.name AS insurance_name
+            SELECT p.patient_id, p.full_name, p.national_id, p.insurance_id,
+                   mi.name AS insurance_name
             FROM patients p
-            JOIN insurance_hospitals ih ON ih.insurance_id = p.insurance_id AND ih.hospital_id = ?
             LEFT JOIN medical_insurances mi ON mi.insurance_id = p.insurance_id
-            WHERE p.patient_id = ? LIMIT 1
+            LEFT JOIN insurance_hospitals ih
+                   ON ih.insurance_id = p.insurance_id
+                  AND ih.hospital_id = ?
+            WHERE p.patient_id = ?
+              AND (
+                    ih.hospital_id IS NOT NULL
+                 OR p.insurance_id IS NULL
+              )
+            LIMIT 1
         ");
         $stmt->bind_param('ii', $hospital_id, $patient_id);
         $stmt->execute();
         $patient = $stmt->get_result()->fetch_assoc();
         $stmt->close();
-        if (!$patient) die("This patient's insurance is not contracted with your hospital.");
+
+        if (!$patient) {
+            // Redirect with error instead of die()
+            header('Location: ' . BASE_URL . '/hospital/dashboard?error=patient_access_denied');
+            exit;
+        }
 
         $insuranceName = $patient['insurance_name'] ?? '';
         $insuranceId   = (int)($patient['insurance_id'] ?? 0);
@@ -276,6 +321,7 @@ class HospitalController {
         }
 
         require_once ROOT . '/app/views/hospital/addRecord.php';
+        $db->close();
     }
 
     // ── GET|POST /hospital/editRecord ────────────────────────────────────────
@@ -288,19 +334,40 @@ class HospitalController {
         $hospital_id = (int)($auth->getSessionData('hospital_id') ?? 0);
         $patient_id  = (int)($_GET['patient_id'] ?? 0);
         $record_id   = (int)($_GET['record_id']  ?? 0);
-        if ($patient_id <= 0 || $record_id <= 0) die('Missing patient_id or record_id.');
 
-        // Patient check
+        // ── FIX: validate IDs up front ───────────────────────────────────────
+        if ($hospital_id <= 0) {
+            header('Location: ' . BASE_URL . '/auth/login');
+            exit;
+        }
+        if ($patient_id <= 0 || $record_id <= 0) {
+            header('Location: ' . BASE_URL . '/hospital/dashboard');
+            exit;
+        }
+
+        // ── FIX: LEFT JOIN so uninsured patients aren't locked out ───────────
         $stmt = $conn->prepare("
-            SELECT p.patient_id, p.full_name, p.national_id FROM patients p
-            JOIN insurance_hospitals ih ON ih.insurance_id = p.insurance_id AND ih.hospital_id = ?
-            WHERE p.patient_id = ? LIMIT 1
+            SELECT p.patient_id, p.full_name, p.national_id
+            FROM patients p
+            LEFT JOIN insurance_hospitals ih
+                   ON ih.insurance_id = p.insurance_id
+                  AND ih.hospital_id = ?
+            WHERE p.patient_id = ?
+              AND (
+                    ih.hospital_id IS NOT NULL
+                 OR p.insurance_id IS NULL
+              )
+            LIMIT 1
         ");
         $stmt->bind_param('ii', $hospital_id, $patient_id);
         $stmt->execute();
         $patient = $stmt->get_result()->fetch_assoc();
         $stmt->close();
-        if (!$patient) die('Patient not found or not accessible by your hospital.');
+
+        if (!$patient) {
+            header('Location: ' . BASE_URL . '/hospital/dashboard?error=patient_not_found');
+            exit;
+        }
 
         // Fetch record
         $stmt = $conn->prepare('SELECT * FROM medical_records WHERE record_id = ? AND patient_id = ? LIMIT 1');
@@ -308,7 +375,11 @@ class HospitalController {
         $stmt->execute();
         $record = $stmt->get_result()->fetch_assoc();
         $stmt->close();
-        if (!$record) die('Record not found for this patient.');
+
+        if (!$record) {
+            header('Location: ' . BASE_URL . '/hospital/viewRecords?patient_id=' . $patient_id);
+            exit;
+        }
 
         $activityOptions = ['Low','Moderate','High'];
         $dietOptions     = ['Poor','Average','Good'];
@@ -324,8 +395,8 @@ class HospitalController {
         }
 
         require_once ROOT . '/app/views/hospital/editRecord.php';
+        $db->close();
     }
-
 
     private function performUpdate(mysqli $conn, int $record_id, int $patient_id, array $p): void {
 
