@@ -1,0 +1,10 @@
+[
+  "Coverage_Growth_Lag1",
+  "Coverage_Growth_Lag2",
+  "Patient_Count_Growth",
+  "Patient_Count",
+  "Avg_Treatment_Cost",
+  "Avg_Coverage_Pct",
+  "Avg_Claim_Amount",
+  "Claim_Approved_Rate"
+]
