@@ -13,6 +13,7 @@ function e($v): string { return htmlspecialchars((string)($v??''), ENT_QUOTES, '
   <link href="https://fonts.googleapis.com/css?family=Nunito:200,300,400,600,700,800,900" rel="stylesheet">
   <link href="<?= BASE_URL ?>/assets/css/sb-admin-2.min.css" rel="stylesheet">
   <style>
+    /* ── Brand chrome ─────────────────────────────────────── */
     .ins-badge {
       display: inline-flex; align-items: center; gap: 8px;
       padding: 4px 10px; border-radius: 20px;
@@ -25,12 +26,11 @@ function e($v): string { return htmlspecialchars((string)($v??''), ENT_QUOTES, '
       text-transform: uppercase; letter-spacing: .05em;
       color: #4e73df; margin-bottom: .75rem;
     }
+
+    /* ── Calc preview ─────────────────────────────────────── */
     .calc-preview {
-      background: #f0f4ff;
-      border: 1px dashed #4e73df;
-      border-radius: 8px;
-      padding: 12px 16px;
-      font-size: 13px;
+      background: #f0f4ff; border: 1px dashed #4e73df;
+      border-radius: 8px; padding: 12px 16px; font-size: 13px;
     }
     .calc-preview .calc-row { display: flex; flex-wrap: wrap; gap: 16px; }
     .calc-item { min-width: 120px; }
@@ -38,6 +38,42 @@ function e($v): string { return htmlspecialchars((string)($v??''), ENT_QUOTES, '
     .calc-item .ci-value { font-weight: 700; font-size: 15px; color: #2e2e3a; }
     .ci-pos { color: #1cc88a !important; }
     .ci-neg { color: #e74a3b !important; }
+
+    /* ── Validation feedback ──────────────────────────────── */
+    .field-error {
+      display: none; font-size: 11.5px; color: #e74a3b;
+      margin-top: 3px; font-weight: 600;
+    }
+    .field-error.visible { display: block; }
+    .form-control.is-invalid { border-color: #e74a3b !important; background-image: none; }
+    .form-control.is-valid   { border-color: #1cc88a !important; background-image: none; }
+
+    /* ── 0–1 symptom selects ──────────────────────────────── */
+    .score-select { appearance: none; -webkit-appearance: none; }
+    .score-select option[value="0"] { color: #1cc88a; }
+    .score-select option[value="1"] { color: #e74a3b; }
+
+    /* ── Range hint badge ─────────────────────────────────── */
+    .range-hint {
+      font-size: 10.5px; color: #888;
+      background: #f8f9fc; border: 1px solid #e3e6f0;
+      border-radius: 4px; padding: 1px 5px;
+      display: inline-block; margin-top: 2px;
+    }
+    .range-hint.warn { color: #f6c23e; border-color: #f6c23e; background: #fffdf0; }
+    .range-hint.danger { color: #e74a3b; border-color: #e74a3b; background: #fff5f5; }
+
+    /* ── Submit error summary ─────────────────────────────── */
+    #validationSummary {
+      display: none; margin-bottom: 16px;
+      border-left: 4px solid #e74a3b;
+      background: #fff5f5; padding: 10px 14px;
+      border-radius: 6px; font-size: 13px; color: #c0392b;
+    }
+    #validationSummary strong { display: block; margin-bottom: 4px; }
+
+    /* ── Auto-filled field style ──────────────────────────── */
+    .auto-filled { background: #f0f4ff !important; }
   </style>
 </head>
 <body class="bg-light">
@@ -82,51 +118,77 @@ function e($v): string { return htmlspecialchars((string)($v??''), ENT_QUOTES, '
         <div class="alert alert-danger"><?= e($error) ?></div>
       <?php endif; ?>
 
-      <form method="POST" id="recordForm">
+      <!-- Submit error summary (filled by JS) -->
+      <div id="validationSummary">
+        <strong><i class="fas fa-exclamation-triangle mr-1"></i> Please fix the following before saving:</strong>
+        <ul id="summaryList" style="margin:0;padding-left:18px;"></ul>
+      </div>
+
+      <form method="POST" id="recordForm" novalidate>
 
         <!-- ══ 1. ADMISSION INFO ════════════════════════════════════ -->
         <p class="section-title"><i class="fas fa-calendar-alt mr-1"></i> 1. Admission Info</p>
         <div class="row">
+
           <div class="col-md-2 form-group">
-            <label>Age</label>
-            <input type="number" name="age" min="0" max="150" class="form-control">
+            <label>Age <span class="text-danger">*</span></label>
+            <input type="number" name="age" id="age" min="0" max="120" class="form-control"
+                   placeholder="1–120">
+           <!-- <span class="range-hint">1 – 120 years</span> -->
+            <div class="field-error" id="err_age"></div>
           </div>
+
           <div class="col-md-3 form-group">
-            <label>Check-in Date</label>
+            <label>Check-in Date <span class="text-danger">*</span></label>
             <input type="date" name="checkin_date" class="form-control" id="checkin_date">
+            <div class="field-error" id="err_checkin"></div>
           </div>
+
           <div class="col-md-3 form-group">
-            <label>Check-out Date</label>
+            <label>Check-out Date <span class="text-danger">*</span></label>
             <input type="date" name="checkout_date" class="form-control" id="checkout_date">
+            <div class="field-error" id="err_checkout"></div>
           </div>
+
           <div class="col-md-2 form-group">
             <label>Length of Stay <small class="text-muted">(days)</small></label>
-            <input type="number" name="length_of_stay" min="0" class="form-control" id="length_of_stay" readonly
-                   style="background:#f0f4ff;" title="Auto-calculated from dates">
+            <input type="number" name="length_of_stay" min="0" class="form-control auto-filled"
+                   id="length_of_stay" readonly title="Auto-calculated from dates">
           </div>
+
+      <!--
           <div class="col-md-2 form-group">
             <label>Avg Length of Stay</label>
-            <input type="number" step="0.01" name="avg_length_stay" class="form-control">
+            <input type="number" step="0.01" name="avg_length_stay" id="avg_length_stay"
+                   min="0" max="365" class="form-control" placeholder="e.g. 5.5">
+            <div class="field-error" id="err_avg_los"></div>
           </div>
+-->
           <div class="col-md-2 form-group">
             <label>Month <small class="text-muted">(1–12)</small></label>
-            <input type="number" name="month" min="1" max="12" class="form-control" id="month" readonly
-                   style="background:#f0f4ff;" title="Auto-filled from check-in date">
+            <input type="number" name="month" min="1" max="12" class="form-control auto-filled"
+                   id="month" readonly title="Auto-filled from check-in date">
           </div>
+
           <div class="col-md-2 form-group">
             <label>Year</label>
-            <input type="number" name="year" class="form-control" id="year" readonly
-                   style="background:#f0f4ff;" title="Auto-filled from check-in date">
+            <input type="number" name="year" class="form-control auto-filled"
+                   id="year" readonly title="Auto-filled from check-in date">
           </div>
+
           <div class="col-md-3 form-group">
             <label>Day of Week</label>
-            <input type="text" name="day_of_week" class="form-control" id="day_of_week" readonly
-                   style="background:#f0f4ff;" title="Auto-filled from check-in date">
+            <input type="text" name="day_of_week" class="form-control auto-filled"
+                   id="day_of_week" readonly title="Auto-filled from check-in date">
           </div>
+      <!--
           <div class="col-md-2 form-group">
             <label>Total Admission Count</label>
-            <input type="number" name="admission_count" min="0" class="form-control">
+            <input type="number" name="admission_count" id="admission_count"
+                   min="0" max="9999" class="form-control" placeholder="e.g. 3">
+            <div class="field-error" id="err_admission_count"></div>
           </div>
+-->
         </div>
 
         <hr>
@@ -135,48 +197,78 @@ function e($v): string { return htmlspecialchars((string)($v??''), ENT_QUOTES, '
         <p class="section-title"><i class="fas fa-vial mr-1"></i> 2. Lab Results — Round 1</p>
         <div class="row">
           <div class="col-md-2 form-group">
-            <label>CBC-HB1</label>
-            <input type="number" step="0.01" name="cbc_hb1" id="cbc_hb1" class="form-control lab-input">
+            <label>CBC-HB1 <small class="text-muted">(g/dL)</small></label>
+            <input type="number" step="0.01" name="cbc_hb1" id="cbc_hb1"
+                   min="1" max="25" class="form-control lab-input" placeholder="1–25">
+            <!-- <span class="range-hint" id="hint_hb1">Normal: 12–17</span> -->
+            <div class="field-error" id="err_cbc_hb1"></div>
           </div>
           <div class="col-md-2 form-group">
-            <label>CBC-TLC1</label>
-            <input type="number" step="0.01" name="cbc_tlc1" id="cbc_tlc1" class="form-control lab-input">
+            <label>CBC-TLC1 <small class="text-muted">(×10³/µL)</small></label>
+            <input type="number" step="0.01" name="cbc_tlc1" id="cbc_tlc1"
+                   min="0.5" max="100" class="form-control lab-input" placeholder="0.5–100">
+             <!--<span class="range-hint" id="hint_tlc1">Normal: 4–11</span>-->
+            <div class="field-error" id="err_cbc_tlc1"></div>
           </div>
           <div class="col-md-3 form-group">
-            <label>CBC-PLAT1</label>
-            <input type="number" step="0.01" name="cbc_plat1" id="cbc_plat1" class="form-control lab-input">
+            <label>CBC-PLAT1 <small class="text-muted">(×10³/µL)</small></label>
+            <input type="number" step="0.01" name="cbc_plat1" id="cbc_plat1"
+                   min="5" max="1500" class="form-control lab-input" placeholder="5–1500">
+            <!-- <span class="range-hint" id="hint_plat1">Normal: 150–400</span> -->
+            <div class="field-error" id="err_cbc_plat1"></div>
           </div>
           <div class="col-md-2 form-group">
-            <label>Blood Urea 1</label>
-            <input type="number" step="0.01" name="blood_uria1" id="blood_uria1" class="form-control lab-input">
+            <label>Blood Urea 1 <small class="text-muted">(mg/dL)</small></label>
+            <input type="number" step="0.01" name="blood_uria1" id="blood_uria1"
+                   min="1" max="500" class="form-control lab-input" placeholder="1–500">
+            <!-- <span class="range-hint" id="hint_urea1">Normal: 7–25</span> -->
+            <div class="field-error" id="err_blood_uria1"></div>
           </div>
           <div class="col-md-3 form-group">
-            <label>Blood Creatinine 1</label>
-            <input type="number" step="0.01" name="blood_creatinine1" id="blood_creatinine1" class="form-control lab-input">
+            <label>Blood Creatinine 1 <small class="text-muted">(mg/dL)</small></label>
+            <input type="number" step="0.01" name="blood_creatinine1" id="blood_creatinine1"
+                   min="0.1" max="30" class="form-control lab-input" placeholder="0.1–30">
+            <!-- <span class="range-hint" id="hint_crn1">Normal: 0.6–1.2</span> -->
+            <div class="field-error" id="err_blood_creatinine1"></div>
           </div>
         </div>
 
         <p class="section-title mt-1"><i class="fas fa-vial mr-1"></i> Lab Results — Round 2</p>
         <div class="row">
           <div class="col-md-2 form-group">
-            <label>CBC-HB2</label>
-            <input type="number" step="0.01" name="cbc_hb2" id="cbc_hb2" class="form-control lab-input">
+            <label>CBC-HB2 <small class="text-muted">(g/dL)</small></label>
+            <input type="number" step="0.01" name="cbc_hb2" id="cbc_hb2"
+                   min="1" max="25" class="form-control lab-input" placeholder="1–25">
+            <!-- <span class="range-hint" id="hint_hb2">Normal: 12–17</span> -->
+            <div class="field-error" id="err_cbc_hb2"></div>
           </div>
           <div class="col-md-2 form-group">
-            <label>CBC-TLC2</label>
-            <input type="number" step="0.01" name="cbc_tlc2" id="cbc_tlc2" class="form-control lab-input">
+            <label>CBC-TLC2 <small class="text-muted">(×10³/µL)</small></label>
+            <input type="number" step="0.01" name="cbc_tlc2" id="cbc_tlc2"
+                   min="0.5" max="100" class="form-control lab-input" placeholder="0.5–100">
+            <!-- <span class="range-hint" id="hint_tlc2">Normal: 4–11</span> -->
+            <div class="field-error" id="err_cbc_tlc2"></div>
           </div>
           <div class="col-md-3 form-group">
-            <label>CBC-PLAT2</label>
-            <input type="number" step="0.01" name="cbc_plat2" id="cbc_plat2" class="form-control lab-input">
+            <label>CBC-PLAT2 <small class="text-muted">(×10³/µL)</small></label>
+            <input type="number" step="0.01" name="cbc_plat2" id="cbc_plat2"
+                   min="5" max="1500" class="form-control lab-input" placeholder="5–1500">
+            <!-- <span class="range-hint" id="hint_plat2">Normal: 150–400</span> -->
+            <div class="field-error" id="err_cbc_plat2"></div>
           </div>
           <div class="col-md-2 form-group">
-            <label>Blood Urea 2</label>
-            <input type="number" step="0.01" name="blood_uria2" id="blood_uria2" class="form-control lab-input">
+            <label>Blood Urea 2 <small class="text-muted">(mg/dL)</small></label>
+            <input type="number" step="0.01" name="blood_uria2" id="blood_uria2"
+                   min="1" max="500" class="form-control lab-input" placeholder="1–500">
+            <!-- <span class="range-hint" id="hint_urea2">Normal: 7–25</span> -->
+            <div class="field-error" id="err_blood_uria2"></div>
           </div>
           <div class="col-md-3 form-group">
-            <label>Blood Creatinine 2</label>
-            <input type="number" step="0.01" name="blood_creatinine2" id="blood_creatinine2" class="form-control lab-input">
+            <label>Blood Creatinine 2 <small class="text-muted">(mg/dL)</small></label>
+            <input type="number" step="0.01" name="blood_creatinine2" id="blood_creatinine2"
+                   min="0.1" max="30" class="form-control lab-input" placeholder="0.1–30">
+            <!-- <span class="range-hint" id="hint_crn2">Normal: 0.6–1.2</span> -->
+            <div class="field-error" id="err_blood_creatinine2"></div>
           </div>
         </div>
 
@@ -204,29 +296,39 @@ function e($v): string { return htmlspecialchars((string)($v??''), ENT_QUOTES, '
         <!-- ══ 3. VITALS ════════════════════════════════════════════ -->
         <p class="section-title"><i class="fas fa-heartbeat mr-1"></i> 3. Vitals</p>
         <div class="row">
+
           <div class="col-md-3 form-group">
             <label>BMI</label>
-            <input type="number" step="0.01" name="bmi" class="form-control">
+            <input type="number" step="0.01" name="bmi" id="bmi"
+                   min="10" max="70" class="form-control" placeholder="10–70">
+            <!-- <span class="range-hint" id="hint_bmi">Normal: 18.5–24.9</span> -->
+            <div class="field-error" id="err_bmi"></div>
           </div>
+
           <div class="col-md-3 form-group">
             <label>Glucose <small class="text-muted">(mg/dL)</small></label>
-            <input type="number" step="0.01" name="glucose" class="form-control">
+            <input type="number" step="0.01" name="glucose" id="glucose"
+                   min="20" max="600" class="form-control" placeholder="20–600">
+            <!-- <span class="range-hint" id="hint_glucose">Normal: 70–100</span> -->
+            <div class="field-error" id="err_glucose"></div>
           </div>
+
           <div class="col-md-3 form-group">
             <label>Cholesterol <small class="text-muted">(mg/dL)</small></label>
-            <input type="number" step="0.01" name="cholesterol_level" class="form-control">
+            <input type="number" step="0.01" name="cholesterol_level" id="cholesterol_level"
+                   min="50" max="500" class="form-control" placeholder="50–500">
+            <!-- <span class="range-hint" id="hint_chol">Normal: &lt;200</span> -->
+            <div class="field-error" id="err_cholesterol"></div>
           </div>
+
           <div class="col-md-3 form-group">
-            <label>Blood Pressure <small class="text-muted">(mmHg)</small></label>
-            <div class="input-group">
-              <input type="number" name="systolic_bp" class="form-control" min="0">
-              <div class="input-group-prepend input-group-append">
-                
-              </div>
-              
-            </div>
-          
+            <label>Systolic BP <small class="text-muted">(mmHg)</small></label>
+            <input type="number" step="1" name="systolic_bp" id="systolic_bp"
+                   min="50" max="300" class="form-control" placeholder="50–300">
+            <!-- <span class="range-hint" id="hint_bp">Normal: 90–120</span> -->
+            <div class="field-error" id="err_systolic_bp"></div>
           </div>
+
         </div>
 
         <hr>
@@ -234,43 +336,51 @@ function e($v): string { return htmlspecialchars((string)($v??''), ENT_QUOTES, '
         <!-- ══ 4. LIFESTYLE ══════════════════════════════════════════ -->
         <p class="section-title"><i class="fas fa-running mr-1"></i> 4. Lifestyle</p>
         <div class="row">
+
           <div class="col-md-3 form-group">
             <label>Smoking Status</label>
-            <select class="form-control" name="smoking_status">
+            <select class="form-control" name="smoking_status" id="smoking_status">
               <option value="">— Select —</option>
               <option value="1">Smoker</option>
               <option value="0">Non-Smoker</option>
             </select>
           </div>
+
           <div class="col-md-3 form-group">
             <label>Physical Activity Level</label>
-            <select class="form-control" name="physical_activity_level">
+            <select class="form-control" name="physical_activity_level" id="physical_activity_level">
               <option value="">— Select —</option>
-              <option>Low</option>
-              <option>Moderate</option>
-              <option>High</option>
+              <option value="Low">Low</option>
+              <option value="Moderate">Moderate</option>
+              <option value="High">High</option>
             </select>
           </div>
+
           <div class="col-md-3 form-group">
             <label>Diet Quality</label>
-            <select class="form-control" name="diet_quality">
+            <select class="form-control" name="diet_quality" id="diet_quality">
               <option value="">— Select —</option>
-              <option>Poor</option>
-              <option>Average</option>
-              <option>Good</option>
+              <option value="Poor">Poor</option>
+              <option value="Average">Average</option>
+              <option value="Good">Good</option>
             </select>
           </div>
+
           <div class="col-md-3 form-group">
             <label>Sleep Hours</label>
-            <input type="number" step="0.1" min="0" max="24" name="sleep_hours"
-                   class="form-control" placeholder="e.g. 7.5">
+            <input type="number" step="0.1" min="0" max="24" name="sleep_hours" id="sleep_hours"
+                   class="form-control" placeholder="0–24">
+            <!-- <span class="range-hint">Recommended: 6–9 hrs</span> -->
+            <div class="field-error" id="err_sleep"></div>
           </div>
+
           <div class="col-md-3 form-group">
             <div class="form-check mt-2">
               <input class="form-check-input" type="checkbox" name="alcohol_consumption" value="1" id="alc">
               <label class="form-check-label" for="alc">Alcohol Consumption</label>
             </div>
           </div>
+
         </div>
 
         <hr>
@@ -278,30 +388,52 @@ function e($v): string { return htmlspecialchars((string)($v??''), ENT_QUOTES, '
         <!-- ══ 5. RISK SCORES ════════════════════════════════════════ -->
         <p class="section-title"><i class="fas fa-chart-line mr-1"></i> 5. Risk Scores</p>
         <div class="row">
+
           <div class="col-md-2 form-group">
-            <label>Stress Level</label>
-            <input type="number" step="0.01" name="stress_level" class="form-control" placeholder="0–10">
+            <label>Stress Level <small class="text-muted">(0–10)</small></label>
+            <input type="number" step="0.01" name="stress_level" id="stress_level"
+                   min="0" max="10" class="form-control" placeholder="0–10">
+            <div class="field-error" id="err_stress"></div>
           </div>
+
           <div class="col-md-2 form-group">
             <label>Family History</label>
-            <input type="number" step="0.0001" name="family_history" class="form-control">
+            <select class="form-control" name="family_history" id="family_history">
+              <option value="">— Select —</option>
+              <option value="1">Yes</option>
+              <option value="0">No</option>
+            </select>
+            <div class="field-error" id="err_family_history"></div>
           </div>
+
           <div class="col-md-2 form-group">
             <label>Medications Count</label>
-            <input type="number" step="0.01" name="medications_count" class="form-control">
+            <input type="number" step="1" name="medications_count" id="medications_count"
+                   min="0" max="50" class="form-control" placeholder="0–50">
+            <div class="field-error" id="err_medications"></div>
           </div>
+
           <div class="col-md-2 form-group">
-            <label>Risk Score</label>
-            <input type="number" step="0.000001" name="risk_score" class="form-control">
+            <label>Risk Score <small class="text-muted">(0–1)</small></label>
+            <input type="number" step="0.000001" name="risk_score" id="risk_score"
+                   min="0" max="1" class="form-control" placeholder="0.0–1.0">
+            <div class="field-error" id="err_risk_score"></div>
           </div>
+
           <div class="col-md-2 form-group">
-            <label>Symptom Burden</label>
-            <input type="number" step="0.000001" name="symptom_burden" class="form-control">
+            <label>Symptom Burden <small class="text-muted">(0–1)</small></label>
+            <input type="number" step="0.000001" name="symptom_burden" id="symptom_burden"
+                   min="0" max="1" class="form-control" placeholder="0.0–1.0">
+            <div class="field-error" id="err_symptom_burden"></div>
           </div>
+
           <div class="col-md-2 form-group">
-            <label>Seasonal Weight</label>
-            <input type="number" step="0.000001" name="seasonal_weight" class="form-control">
+            <label>Seasonal Weight <small class="text-muted">(0–1)</small></label>
+            <input type="number" step="0.000001" name="seasonal_weight" id="seasonal_weight"
+                   min="0" max="1" class="form-control" placeholder="0.0–1.0">
+            <div class="field-error" id="err_seasonal_weight"></div>
           </div>
+
         </div>
 
         <hr>
@@ -309,24 +441,50 @@ function e($v): string { return htmlspecialchars((string)($v??''), ENT_QUOTES, '
         <!-- ══ 6. SYMPTOMS ═══════════════════════════════════════════ -->
         <p class="section-title"><i class="fas fa-thermometer-half mr-1"></i> 6. Symptoms</p>
         <div class="row">
+
           <div class="col-md-2 form-group">
             <label>Fever</label>
-            <input type="number" step="0.0001" name="fever" class="form-control" placeholder="0–1 score">
+            <select class="form-control score-select" name="fever" id="fever">
+              <option value="">— Select —</option>
+              <option value="0">0 — Absent</option>
+              <option value="1">1 — Present</option>
+            </select>
+            <div class="field-error" id="err_fever"></div>
           </div>
+
           <div class="col-md-2 form-group">
             <label>Cough</label>
-            <input type="number" step="0.0001" name="cough" class="form-control" placeholder="0–1 score">
+            <select class="form-control score-select" name="cough" id="cough">
+              <option value="">— Select —</option>
+              <option value="0">0 — Absent</option>
+              <option value="1">1 — Present</option>
+            </select>
+            <div class="field-error" id="err_cough"></div>
           </div>
+
           <div class="col-md-2 form-group">
             <label>Fatigue</label>
-            <input type="number" step="0.0001" name="fatigue" class="form-control" placeholder="0–1 score">
+            <select class="form-control score-select" name="fatigue" id="fatigue">
+              <option value="">— Select —</option>
+              <option value="0">0 — Absent</option>
+              <option value="1">1 — Present</option>
+            </select>
+            <div class="field-error" id="err_fatigue"></div>
           </div>
+
           <div class="col-md-3 form-group">
             <label>Shortness of Breath</label>
-            <input type="number" step="0.0001" name="shortness_of_breath" class="form-control" placeholder="0–1 score">
+            <select class="form-control score-select" name="shortness_of_breath" id="shortness_of_breath">
+              <option value="">— Select —</option>
+              <option value="0">0 — Absent</option>
+              <option value="1">1 — Present</option>
+            </select>
+            <div class="field-error" id="err_sob"></div>
           </div>
+
           <div class="col-md-3 form-group">
-            <div class="form-check mt-4">
+            <label class="d-block mb-2">Other Symptoms</label>
+            <div class="form-check">
               <input class="form-check-input" type="checkbox" name="chest_pain" value="1" id="cp">
               <label class="form-check-label" for="cp">Chest Pain</label>
             </div>
@@ -335,6 +493,7 @@ function e($v): string { return htmlspecialchars((string)($v??''), ENT_QUOTES, '
               <label class="form-check-label" for="ha">Headache</label>
             </div>
           </div>
+
         </div>
 
         <hr>
@@ -373,33 +532,37 @@ function e($v): string { return htmlspecialchars((string)($v??''), ENT_QUOTES, '
         <!-- ══ 8. DIAGNOSIS ══════════════════════════════════════════ -->
         <p class="section-title"><i class="fas fa-stethoscope mr-1"></i> 8. Diagnosis</p>
         <div class="row">
-          <div class="col-md-6 form-group">
-            <label>Primary Diagnosis</label>
-            <input type="text" name="diagnosis" class="form-control"
-                   placeholder="e.g. Diabetes, Hypertension, CKD">
-          </div>
-          <div class="col-md-6 form-group">
-            <label>Disease Category</label>
-            <select name="disease_category" class="form-control">
-  <option value="">— Select Disease —</option>
 
-  <option value="Cancer">Cancer</option>
-  <option value="Diabetes">Diabetes</option>
-  <option value="Hypertension">Hypertension</option>
-  <option value="Pneumonia">Pneumonia</option>
-  <option value="Coronary Artery Disease">Coronary Artery Disease</option>
-  <option value="Heart Failure">Heart Failure</option>
-  <option value="Chronic Kidney Disease">Chronic Kidney Disease</option>
-  <option value="Asthma">Asthma</option>
-  <option value="Stroke">Stroke</option>
-  <option value="Healthy">Healthy</option>
-  <option value="Healthy">Other</option>
-</select>
+          <div class="col-md-6 form-group">
+            <label>Primary Diagnosis <span class="text-danger">*</span></label>
+            <input type="text" name="diagnosis" id="diagnosis" class="form-control"
+                   placeholder="e.g. Diabetes, Hypertension, CKD" minlength="2" maxlength="200">
+            <div class="field-error" id="err_diagnosis"></div>
           </div>
+
+          <div class="col-md-6 form-group">
+            <label>Disease Category <span class="text-danger">*</span></label>
+            <select name="disease_category" id="disease_category" class="form-control">
+              <option value="">— Select Disease —</option>
+              <option value="Cancer">Cancer</option>
+              <option value="Diabetes">Diabetes</option>
+              <option value="Hypertension">Hypertension</option>
+              <option value="Pneumonia">Pneumonia</option>
+              <option value="Coronary Artery Disease">Coronary Artery Disease</option>
+              <option value="Heart Failure">Heart Failure</option>
+              <option value="Chronic Kidney Disease">Chronic Kidney Disease</option>
+              <option value="Asthma">Asthma</option>
+              <option value="Stroke">Stroke</option>
+              <option value="Healthy">Healthy</option>
+              <option value="Other">Other</option>
+            </select>
+            <div class="field-error" id="err_disease_category"></div>
+          </div>
+
         </div>
 
         <div class="mt-4">
-          <button class="btn btn-primary btn-block btn-lg" type="submit">
+          <button class="btn btn-primary btn-block btn-lg" type="submit" id="submitBtn">
             <i class="fas fa-save mr-1"></i> Save Medical Record
           </button>
         </div>
@@ -412,79 +575,346 @@ function e($v): string { return htmlspecialchars((string)($v??''), ENT_QUOTES, '
 <script src="<?= BASE_URL ?>/assets/js/jquery.min.js"></script>
 <script src="<?= BASE_URL ?>/assets/js/bootstrap.bundle.min.js"></script>
 <script>
-// ── Auto-fill date-derived fields from check-in date ──────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// HELPERS
+// ─────────────────────────────────────────────────────────────────────────────
+const $ = id => document.getElementById(id);
 const days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
 
-document.getElementById('checkin_date').addEventListener('change', function () {
-  const d = new Date(this.value);
-  if (isNaN(d)) return;
-  document.getElementById('month').value       = d.getMonth() + 1;
-  document.getElementById('year').value        = d.getFullYear();
-  document.getElementById('day_of_week').value = days[d.getDay()];
-  updateLOS();
-});
-
-document.getElementById('checkout_date').addEventListener('change', updateLOS);
-
-function updateLOS() {
-  const ci = document.getElementById('checkin_date').value;
-  const co = document.getElementById('checkout_date').value;
-  if (!ci || !co) return;
-  const diff = Math.round((new Date(co) - new Date(ci)) / 86400000);
-  if (diff >= 0) document.getElementById('length_of_stay').value = diff;
+function setError(fieldId, msg) {
+  const el = $(fieldId);
+  if (!el) return;
+  el.classList.remove('is-valid');
+  el.classList.add('is-invalid');
+  const errEl = $('err_' + fieldId);
+  if (errEl) { errEl.textContent = msg; errEl.classList.add('visible'); }
 }
 
-// ── Live preview of auto-calculated averages & deltas ─────────────────────────
+function clearError(fieldId) {
+  const el = $(fieldId);
+  if (!el) return;
+  el.classList.remove('is-invalid');
+  el.classList.add('is-valid');
+  const errEl = $('err_' + fieldId);
+  if (errEl) { errEl.textContent = ''; errEl.classList.remove('visible'); }
+}
+
+function clearState(fieldId) {
+  const el = $(fieldId);
+  if (!el) return;
+  el.classList.remove('is-invalid', 'is-valid');
+  const errEl = $('err_' + fieldId);
+  if (errEl) { errEl.textContent = ''; errEl.classList.remove('visible'); }
+}
+
+function numVal(id) {
+  const v = parseFloat($(id)?.value);
+  return isNaN(v) ? null : v;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DATE AUTO-FILL & CROSS-VALIDATION
+// ─────────────────────────────────────────────────────────────────────────────
+$('checkin_date').addEventListener('change', function () {
+  const d = new Date(this.value);
+  if (isNaN(d)) return;
+  $('month').value       = d.getMonth() + 1;
+  $('year').value        = d.getFullYear();
+  $('day_of_week').value = days[d.getDay()];
+  updateLOS();
+  validateDates();
+});
+
+$('checkout_date').addEventListener('change', function () {
+  updateLOS();
+  validateDates();
+});
+
+function updateLOS() {
+  const ci = $('checkin_date').value;
+  const co = $('checkout_date').value;
+  if (!ci || !co) return;
+  const diff = Math.round((new Date(co) - new Date(ci)) / 86400000);
+  if (diff >= 0) $('length_of_stay').value = diff;
+  else $('length_of_stay').value = '';
+}
+
+function validateDates() {
+  const today  = new Date(); today.setHours(0,0,0,0);
+  const ciVal  = $('checkin_date').value;
+  const coVal  = $('checkout_date').value;
+  let ok = true;
+
+  if (!ciVal) {
+    setError('checkin_date', 'Check-in date is required.');
+    ok = false;
+  } else {
+    const ci = new Date(ciVal);
+    if (ci > today) {
+      setError('checkin_date', 'Check-in date cannot be in the future.');
+      ok = false;
+    } else {
+      clearError('checkin_date');
+    }
+  }
+
+  if (ciVal && coVal) {
+    const ci = new Date(ciVal), co = new Date(coVal);
+    if (co < ci) {
+      setError('checkout_date', 'Check-out date must be on or after check-in date.');
+      ok = false;
+    } else {
+      clearError('checkout_date');
+    }
+  } else if (!coVal && ciVal) {
+    clearState('checkout_date');
+  }
+
+  return ok;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// LIVE RANGE HINTS (update badge color as user types)
+// ─────────────────────────────────────────────────────────────────────────────
+const rangeRules = {
+  // id: [min_allowed, max_allowed, normal_low, normal_high]
+  cbc_hb1:           [1,    25,   12,   17],
+  cbc_hb2:           [1,    25,   12,   17],
+  cbc_tlc1:          [0.5,  100,  4,    11],
+  cbc_tlc2:          [0.5,  100,  4,    11],
+  cbc_plat1:         [5,    1500, 150,  400],
+  cbc_plat2:         [5,    1500, 150,  400],
+  blood_uria1:       [1,    500,  7,    25],
+  blood_uria2:       [1,    500,  7,    25],
+  blood_creatinine1: [0.1,  30,   0.6,  1.2],
+  blood_creatinine2: [0.1,  30,   0.6,  1.2],
+  bmi:               [10,   70,   18.5, 24.9],
+  glucose:           [20,   600,  70,   100],
+  cholesterol_level: [50,   500,  0,    200],
+  systolic_bp:       [50,   300,  90,   120],
+  stress_level:      [0,    10,   0,    4],
+  risk_score:        [0,    1,    0,    0.4],
+  symptom_burden:    [0,    1,    0,    0.4],
+  seasonal_weight:   [0,    1,    0,    1],
+};
+
+const hintMap = {
+  cbc_hb1: 'hint_hb1', cbc_hb2: 'hint_hb2',
+  cbc_tlc1: 'hint_tlc1', cbc_tlc2: 'hint_tlc2',
+  cbc_plat1: 'hint_plat1', cbc_plat2: 'hint_plat2',
+  blood_uria1: 'hint_urea1', blood_uria2: 'hint_urea2',
+  blood_creatinine1: 'hint_crn1', blood_creatinine2: 'hint_crn2',
+  bmi: 'hint_bmi', glucose: 'hint_glucose',
+  cholesterol_level: 'hint_chol', systolic_bp: 'hint_bp',
+};
+
+function validateRangeField(id) {
+  const rules = rangeRules[id];
+  if (!rules) return true;
+  const [minA, maxA, normLow, normHigh] = rules;
+  const val = numVal(id);
+  const errKey = id === 'cholesterol_level' ? 'cholesterol'
+               : id === 'systolic_bp'       ? 'systolic_bp'
+               : id === 'stress_level'      ? 'stress'
+               : id === 'risk_score'        ? 'risk_score'
+               : id === 'symptom_burden'    ? 'symptom_burden'
+               : id === 'seasonal_weight'   ? 'seasonal_weight'
+               : id;
+
+  const hintId = hintMap[id];
+
+  if (val === null) {
+    clearState(id);
+    if (hintId && $(hintId)) $(hintId).className = 'range-hint';
+    return true; // optional — empty is OK
+  }
+  if (val < minA || val > maxA) {
+    setError(id, `Must be between ${minA} and ${maxA}.`);
+    if (hintId && $(hintId)) $(hintId).className = 'range-hint danger';
+    return false;
+  }
+  // out of normal range → warning hint but not a hard error
+  if (hintId && $(hintId)) {
+    if (val < normLow || val > normHigh) {
+      $(hintId).className = 'range-hint warn';
+    } else {
+      $(hintId).className = 'range-hint';
+    }
+  }
+  clearError(id);
+  return true;
+}
+
+Object.keys(rangeRules).forEach(id => {
+  const el = $(id);
+  if (el) {
+    el.addEventListener('input', () => validateRangeField(id));
+    el.addEventListener('blur',  () => validateRangeField(id));
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// AGE VALIDATION
+// ─────────────────────────────────────────────────────────────────────────────
+$('age').addEventListener('blur', function () {
+  const v = parseInt(this.value);
+  if (this.value === '') { clearState('age'); return; }
+  if (isNaN(v) || v < 0 || v > 120) {
+    setError('age', 'Age must be between 0 and 120.');
+  } else {
+    clearError('age');
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// OTHER NUMERIC FIELDS
+// ─────────────────────────────────────────────────────────────────────────────
+function simpleMin(id, errKey, min, label) {
+  const el = $(id);
+  if (!el) return;
+  el.addEventListener('blur', function () {
+    if (this.value === '') { clearState(id); return; }
+    const v = parseFloat(this.value);
+    if (isNaN(v) || v < min) {
+      setError(id, `${label} must be ≥ ${min}.`);
+    } else {
+      clearError(id);
+    }
+  });
+}
+
+simpleMin('avg_length_stay',   'avg_los',         0, 'Avg length of stay');
+simpleMin('admission_count',   'admission_count', 0, 'Admission count');
+simpleMin('medications_count', 'medications',     0, 'Medications count');
+
+$('sleep_hours').addEventListener('blur', function () {
+  if (this.value === '') { clearState('sleep_hours'); return; }
+  const v = parseFloat(this.value);
+  if (isNaN(v) || v < 0 || v > 24) {
+    setError('sleep_hours', 'Sleep hours must be between 0 and 24.');
+  } else {
+    clearError('sleep_hours');
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DIAGNOSIS REQUIRED FIELDS
+// ─────────────────────────────────────────────────────────────────────────────
+$('diagnosis').addEventListener('blur', function () {
+  if (this.value.trim().length < 2) {
+    setError('diagnosis', 'Please enter a primary diagnosis (at least 2 characters).');
+  } else {
+    clearError('diagnosis');
+  }
+});
+
+$('disease_category').addEventListener('change', function () {
+  if (!this.value) {
+    setError('disease_category', 'Please select a disease category.');
+  } else {
+    clearError('disease_category');
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CALC PREVIEW (averages & deltas from lab values)
+// ─────────────────────────────────────────────────────────────────────────────
 const labIds = ['cbc_hb1','cbc_hb2','cbc_tlc1','cbc_tlc2',
                 'cbc_plat1','cbc_plat2','blood_uria1','blood_uria2',
                 'blood_creatinine1','blood_creatinine2'];
 
 labIds.forEach(id => {
-  document.getElementById(id).addEventListener('input', updateCalcPreview);
+  const el = $(id);
+  if (el) el.addEventListener('input', updateCalcPreview);
 });
 
-function v(id) {
-  const val = parseFloat(document.getElementById(id).value);
-  return isNaN(val) ? null : val;
-}
-
-function fmt(val, el) {
+function fmtN(val, el) {
   if (val === null) { el.textContent = '—'; el.className = 'ci-value'; return; }
   el.textContent = val.toFixed(3);
   el.className   = 'ci-value ' + (val > 0 ? 'ci-pos' : val < 0 ? 'ci-neg' : '');
 }
-
 function fmtAvg(val, el) {
   if (val === null) { el.textContent = '—'; el.className = 'ci-value'; return; }
   el.textContent = val.toFixed(3);
   el.className   = 'ci-value';
 }
-
 function calcAvg(a, b)   { return (a !== null && b !== null) ? Math.round((a+b)/2*1000)/1000 : null; }
 function calcDelta(a, b) { return (a !== null && b !== null) ? Math.round((b-a)*1000)/1000   : null; }
 
 function updateCalcPreview() {
-  const hb1  = v('cbc_hb1'),           hb2  = v('cbc_hb2');
-  const tlc1 = v('cbc_tlc1'),          tlc2 = v('cbc_tlc2');
-  const pl1  = v('cbc_plat1'),         pl2  = v('cbc_plat2');
-  const ur1  = v('blood_uria1'),       ur2  = v('blood_uria2');
-  const cr1  = v('blood_creatinine1'), cr2  = v('blood_creatinine2');
+  const hb1  = numVal('cbc_hb1'),           hb2  = numVal('cbc_hb2');
+  const tlc1 = numVal('cbc_tlc1'),          tlc2 = numVal('cbc_tlc2');
+  const pl1  = numVal('cbc_plat1'),         pl2  = numVal('cbc_plat2');
+  const ur1  = numVal('blood_uria1'),       ur2  = numVal('blood_uria2');
+  const cr1  = numVal('blood_creatinine1'), cr2  = numVal('blood_creatinine2');
 
   const anyFilled = [hb1,hb2,tlc1,tlc2,pl1,pl2,ur1,ur2,cr1,cr2].some(x => x !== null);
-  document.getElementById('calcPreview').style.display = anyFilled ? '' : 'none';
+  $('calcPreview').style.display = anyFilled ? '' : 'none';
 
-  fmtAvg(calcAvg(hb1,  hb2),  document.getElementById('prev_avg_hb'));
-  fmtAvg(calcAvg(tlc1, tlc2), document.getElementById('prev_avg_tlc'));
-  fmtAvg(calcAvg(pl1,  pl2),  document.getElementById('prev_avg_plat'));
-  fmtAvg(calcAvg(ur1,  ur2),  document.getElementById('prev_avg_urea'));
-  fmtAvg(calcAvg(cr1,  cr2),  document.getElementById('prev_avg_crn'));
-
-  fmt(calcDelta(hb1,  hb2),  document.getElementById('prev_d_hb'));
-  fmt(calcDelta(tlc1, tlc2), document.getElementById('prev_d_tlc'));
-  fmt(calcDelta(pl1,  pl2),  document.getElementById('prev_d_plat'));
-  fmt(calcDelta(ur1,  ur2),  document.getElementById('prev_d_urea'));
-  fmt(calcDelta(cr1,  cr2),  document.getElementById('prev_d_crn'));
+  fmtAvg(calcAvg(hb1,  hb2),  $('prev_avg_hb'));
+  fmtAvg(calcAvg(tlc1, tlc2), $('prev_avg_tlc'));
+  fmtAvg(calcAvg(pl1,  pl2),  $('prev_avg_plat'));
+  fmtAvg(calcAvg(ur1,  ur2),  $('prev_avg_urea'));
+  fmtAvg(calcAvg(cr1,  cr2),  $('prev_avg_crn'));
+  fmtN(calcDelta(hb1,  hb2),  $('prev_d_hb'));
+  fmtN(calcDelta(tlc1, tlc2), $('prev_d_tlc'));
+  fmtN(calcDelta(pl1,  pl2),  $('prev_d_plat'));
+  fmtN(calcDelta(ur1,  ur2),  $('prev_d_urea'));
+  fmtN(calcDelta(cr1,  cr2),  $('prev_d_crn'));
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SUBMIT GUARD — full validation sweep before POST
+// ─────────────────────────────────────────────────────────────────────────────
+$('recordForm').addEventListener('submit', function (e) {
+  const errors = [];
+
+  // 1. Required: age
+  const age = parseInt($('age').value);
+  if ($('age').value === '' || isNaN(age) || age < 0 || age > 120) {
+    setError('age', 'Age is required and must be between 0 and 120.');
+    errors.push('Age');
+  }
+
+  // 2. Required: check-in date
+  if (!validateDates()) {
+    errors.push('Admission dates');
+  }
+
+  // 3. Check-out required
+  if (!$('checkout_date').value) {
+    setError('checkout_date', 'Check-out date is required.');
+    errors.push('Check-out date');
+  }
+
+  // 4. All range fields
+  Object.keys(rangeRules).forEach(id => {
+    if (!validateRangeField(id)) {
+      errors.push(document.querySelector(`[name="${id}"]`)?.closest('.form-group')?.querySelector('label')?.textContent?.trim() || id);
+    }
+  });
+
+  // 5. Required: diagnosis
+  if ($('diagnosis').value.trim().length < 2) {
+    setError('diagnosis', 'Primary diagnosis is required (at least 2 characters).');
+    errors.push('Primary Diagnosis');
+  }
+
+  // 6. Required: disease category
+  if (!$('disease_category').value) {
+    setError('disease_category', 'Please select a disease category.');
+    errors.push('Disease Category');
+  }
+
+  if (errors.length > 0) {
+    e.preventDefault();
+    const summary = $('validationSummary');
+    const list    = $('summaryList');
+    list.innerHTML = [...new Set(errors)].map(er => `<li>${er}</li>`).join('');
+    summary.style.display = 'block';
+    summary.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+});
 </script>
 
 </body>

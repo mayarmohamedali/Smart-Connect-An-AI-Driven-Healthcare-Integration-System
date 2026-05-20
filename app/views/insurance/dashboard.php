@@ -306,20 +306,71 @@
           <span class="badge badge-light">ID: <?= (int)$insurance_id ?></span>
         </div>
         <div class="card-body">
-          <form method="POST" action="<?= BASE_URL ?>/?url=insurance/dashboard#addPatient">
+          <form method="POST" action="<?= BASE_URL ?>/?url=insurance/dashboard#addPatient" id="addPatientForm" novalidate>
             <input type="hidden" name="action" value="add_patient">
-            <div class="form-group"><label>Full Name</label><input class="form-control" name="full_name" required></div>
-            <div class="form-group"><label>National ID (14 digits)</label><input class="form-control" name="national_id" maxlength="14" required></div>
-            <div class="form-group"><label>Phone (Egypt)</label><input class="form-control" name="phone" placeholder="010xxxxxxxx" required></div>
+
+            <!-- Full Name -->
             <div class="form-group">
-              <label>Gender</label>
-              <select class="form-control" name="gender" required>
-                <option value="">Select</option><option value="M">Male</option><option value="F">Female</option>
-              </select>
+              <label for="inp_full_name">Full Name <span class="text-danger">*</span></label>
+              <input
+                class="form-control" id="inp_full_name" name="full_name"
+                placeholder="e.g. Ahmed Hassan"
+                autocomplete="off"
+                maxlength="100">
+              <div class="invalid-feedback" id="err_full_name"></div>
             </div>
-            <div class="form-group"><label>Assigned Insurance</label><input class="form-control" value="<?= Validator::sanitizeInput($insurance_name) ?>" readonly></div>
-            <div class="form-group"><label>Address</label><input class="form-control" name="address" required></div>
-            <button class="btn btn-success btn-block" type="submit"><i class="fas fa-save mr-1"></i> Save Patient</button>
+
+            <!-- National ID -->
+            <div class="form-group">
+              <label for="inp_national_id">National ID <span class="text-danger">*</span></label>
+              <input
+                class="form-control" id="inp_national_id" name="national_id"
+                placeholder="14 digits — e.g. 29901011234567"
+                maxlength="14" inputmode="numeric" autocomplete="off">
+              <div class="invalid-feedback" id="err_national_id"></div>
+              <span id="hint_national_id" style="display:none;" aria-hidden="true"></span>
+            </div>
+
+            <!-- Phone -->
+            <div class="form-group">
+              <label for="inp_phone">Phone <span class="text-danger">*</span></label>
+              <input
+                class="form-control" id="inp_phone" name="phone"
+                placeholder="010XXXXXXXX"
+                maxlength="11" inputmode="numeric" autocomplete="off">
+              <div class="invalid-feedback" id="err_phone"></div>
+            </div>
+
+            <!-- Gender -->
+            <div class="form-group">
+              <label for="inp_gender">Gender <span class="text-danger">*</span></label>
+              <select class="form-control" id="inp_gender" name="gender">
+                <option value="">— Select gender —</option>
+                <option value="M">Male</option>
+                <option value="F">Female</option>
+              </select>
+              <div class="invalid-feedback" id="err_gender"></div>
+            </div>
+
+            <!-- Assigned Insurance (read-only) -->
+            <div class="form-group">
+              <label>Assigned Insurance</label>
+              <input class="form-control bg-light" value="<?= Validator::sanitizeInput($insurance_name) ?>" readonly tabindex="-1">
+            </div>
+
+            <!-- Address -->
+            <div class="form-group">
+              <label for="inp_address">Address <span class="text-danger">*</span></label>
+              <input
+                class="form-control" id="inp_address" name="address"
+                placeholder="e.g. 12 Tahrir St, Cairo"
+                maxlength="255" autocomplete="off">
+              <div class="invalid-feedback" id="err_address"></div>
+            </div>
+
+            <button class="btn btn-success btn-block" type="submit" id="btnSavePatient">
+              <i class="fas fa-save mr-1"></i> Save Patient
+            </button>
           </form>
         </div>
       </div>
@@ -753,6 +804,163 @@ makeChart('chartRenewPie', {
     plugins:{legend:{position:'bottom',labels:{boxWidth:10,padding:8}},
     tooltip:{callbacks:{label:ctx=>`${ctx.label}: ${ctx.raw} patients`}}}}
 });
+</script>
+
+<script>
+/* ═══════════════════════════════════════════════════
+   Add Patient — client-side validation
+   Mirrors Validator.php rules exactly so errors show
+   instantly, before the PHP round-trip.
+═══════════════════════════════════════════════════ */
+(function () {
+
+  /* ── helpers ── */
+  function el(id)   { return document.getElementById(id); }
+  function ok(id)   { el('inp_' + id).classList.remove('is-invalid'); el('inp_' + id).classList.add('is-valid'); el('err_' + id).textContent = ''; }
+  function fail(id, msg) { el('inp_' + id).classList.remove('is-valid'); el('inp_' + id).classList.add('is-invalid'); el('err_' + id).textContent = msg; }
+  function reset(id) { el('inp_' + id).classList.remove('is-valid', 'is-invalid'); el('err_' + id).textContent = ''; }
+
+  /* ── National ID decoder (Egyptian 14-digit format)
+       Digit 1   : 2 = born 1900s, 3 = born 2000s
+       Digits 2-7 : YYMMDD (birth date)
+       Digits 8-9 : governorate code (01-27)
+       Digits 10-13: sequence
+       Digit 14  : check digit (odd = male, even = female)
+  ── */
+  function decodeNationalId(nid) {
+    if (!/^\d{14}$/.test(nid)) return null;
+    var century = nid[0];
+    if (century !== '2' && century !== '3') return null;
+    var year  = (century === '2' ? '19' : '20') + nid.substring(1, 3);
+    var month = nid.substring(3, 5);
+    var day   = nid.substring(5, 7);
+    var gov   = parseInt(nid.substring(7, 9), 10);
+    var d = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+    if (
+      isNaN(d.getTime()) ||
+      d.getFullYear() !== parseInt(year) ||
+      d.getMonth()    !== parseInt(month) - 1 ||
+      d.getDate()     !== parseInt(day)
+    ) return null;
+    if (gov < 1 || gov > 27) return null;
+    var today = new Date();
+    var age = today.getFullYear() - d.getFullYear();
+    if (today < new Date(today.getFullYear(), d.getMonth(), d.getDate())) age--;
+    if (age < 0 || age > 120) return null;
+    var genderFromId = parseInt(nid[12]) % 2 === 1 ? 'M' : 'F';
+    return { year: year, month: month, day: day, age: age, gender: genderFromId };
+  }
+
+  var GOV_NAMES = {
+    '01':'Cairo','02':'Alexandria','03':'Port Said','04':'Suez',
+    '11':'Damietta','12':'Dakahlia','13':'Sharqia','14':'Qalyubia',
+    '15':'Kafr El Sheikh','16':'Gharbia','17':'Monufia','18':'Beheira',
+    '19':'Ismailia','21':'Giza','22':'Beni Suef','23':'Fayyum',
+    '24':'Minya','25':'Asyut','26':'Sohag','27':'Qena',
+    '28':'Aswan','29':'Luxor','31':'Red Sea','32':'New Valley',
+    '33':'Matrouh','34':'North Sinai','35':'South Sinai','88':'Foreign'
+  };
+
+  /* ── field validators ── */
+  function validateFullName() {
+    var v = el('inp_full_name').value.trim();
+    if (v === '')                           { fail('full_name', 'Full name is required.'); return false; }
+    if (!/^[A-Za-z\s]+$/.test(v))          { fail('full_name', 'Name must contain letters and spaces only (no numbers or symbols).'); return false; }
+    if (v.replace(/\s+/g, ' ').split(' ').filter(function(w){return w.length>0;}).length < 2)
+                                            { fail('full_name', 'Please enter at least a first and last name.'); return false; }
+    if (v.length < 3)                       { fail('full_name', 'Name must be at least 3 characters.'); return false; }
+    if (v.length > 100)                     { fail('full_name', 'Name must be 100 characters or fewer.'); return false; }
+    ok('full_name'); return true;
+  }
+
+  function validateNationalId() {
+    var v = el('inp_national_id').value.trim();
+    var hint = el('hint_national_id');
+    hint.style.display = 'none'; hint.textContent = '';
+    if (v === '')              { fail('national_id', 'National ID is required.'); return false; }
+    if (!/^\d+$/.test(v))     { fail('national_id', 'National ID must contain digits only.'); return false; }
+    if (v.length !== 14)      { fail('national_id', 'National ID must be exactly 14 digits (entered: ' + v.length + ').'); return false; }
+    var info = decodeNationalId(v);
+    if (!info)                 { fail('national_id', 'Invalid National ID — check the birth date and century digit (2 = 1900s, 3 = 2000s).'); return false; }
+    var govCode = v.substring(7, 9);
+    var govName = GOV_NAMES[govCode] || ('Code ' + govCode);
+    /* Store decoded data silently on the input for use in patient portal — not shown in UI */
+    var inp = el('inp_national_id');
+    inp.dataset.dob    = info.year + '-' + info.month + '-' + info.day;
+    inp.dataset.age    = info.age;
+    inp.dataset.gov    = govName;
+    inp.dataset.gender = info.gender;
+    ok('national_id'); return true;
+  }
+
+  function validatePhone() {
+    var v = el('inp_phone').value.trim();
+    if (v === '')                                        { fail('phone', 'Phone number is required.'); return false; }
+    if (!/^\d+$/.test(v))                               { fail('phone', 'Phone must contain digits only.'); return false; }
+    if (v.length !== 11)                                 { fail('phone', 'Egyptian phone numbers are 11 digits (entered: ' + v.length + ').'); return false; }
+    if (!/^(010|011|012|015)\d{8}$/.test(v))            { fail('phone', 'Must start with 010, 011, 012, or 015.'); return false; }
+    ok('phone'); return true;
+  }
+
+  function validateGender() {
+    var v = el('inp_gender').value;
+    if (v !== 'M' && v !== 'F') { fail('gender', 'Please select a gender.'); return false; }
+    /* Cross-check against National ID if already filled */
+    var nid = el('inp_national_id').value.trim();
+    var info = decodeNationalId(nid);
+    if (info && info.gender !== v) {
+      fail('gender', 'Gender does not match the National ID (' + (info.gender === 'M' ? 'Male' : 'Female') + ' based on ID).');
+      return false;
+    }
+    ok('gender'); return true;
+  }
+
+  function validateAddress() {
+    var v = el('inp_address').value.trim();
+    if (v === '')        { fail('address', 'Address is required.'); return false; }
+    if (v.length < 5)   { fail('address', 'Address is too short (minimum 5 characters).'); return false; }
+    if (v.length > 255) { fail('address', 'Address must be 255 characters or fewer.'); return false; }
+    ok('address'); return true;
+  }
+
+  /* ── live feedback on blur ── */
+  el('inp_full_name').addEventListener('blur',      validateFullName);
+  el('inp_national_id').addEventListener('blur',    validateNationalId);
+  el('inp_phone').addEventListener('blur',          validatePhone);
+  el('inp_gender').addEventListener('change',       validateGender);
+  el('inp_address').addEventListener('blur',        validateAddress);
+
+  /* ── digits-only enforcement while typing ── */
+  ['inp_national_id', 'inp_phone'].forEach(function(id) {
+    el(id).addEventListener('input', function() {
+      this.value = this.value.replace(/\D/g, '');
+    });
+  });
+
+  /* ── re-check gender when National ID filled ── */
+  el('inp_national_id').addEventListener('blur', function() {
+    if (el('inp_gender').value !== '') validateGender();
+  });
+
+  /* ── submit guard ── */
+  el('addPatientForm').addEventListener('submit', function(e) {
+    var valid = [
+      validateFullName(),
+      validateNationalId(),
+      validatePhone(),
+      validateGender(),
+      validateAddress()
+    ].every(Boolean);
+
+    if (!valid) {
+      e.preventDefault();
+      /* scroll to first error */
+      var first = this.querySelector('.is-invalid');
+      if (first) first.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  });
+
+})();
 </script>
 </body>
 </html>
