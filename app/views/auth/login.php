@@ -405,97 +405,258 @@
         }
     }
 
-    async function handleAction() {
-        clearErrors();
-        let valid = true;
-        const role = document.getElementById("role").value;
+// ═══════════════════════════════════════════════
+// SMART CONNECT — ADVANCED LOGIN VALIDATION
+// Replace your current handleAction() with this
+// ═══════════════════════════════════════════════
 
-        // UI-only name validation (not used in DB check now)
-        const nameVal = document.getElementById("fullName").value.trim();
-        if (!/^[A-Za-z\s]{3,}$/.test(nameVal)) {
-            showError("fullName", "nameError");
+async function handleAction() {
+
+    clearErrors();
+
+    let valid = true;
+
+    const role = document.getElementById("role").value;
+
+    // Allowed roles protection
+    const allowedRoles = ['patient', 'hospital', 'insurance', 'admin'];
+
+    if (!allowedRoles.includes(role)) {
+        alert("Invalid role selected");
+        return;
+    }
+
+    // ───────────────────────────────────────────
+    // REGEX RULES
+    // ───────────────────────────────────────────
+
+    const nameRegex = /^[A-Za-z\u0600-\u06FF\s]{3,50}$/;
+
+    const nationalIdRegex = /^[0-9]{14}$/;
+
+    const repeatedDigitsRegex = /^(\d)\1+$/;
+
+    const phoneRegex = /^(010|011|012|015)[0-9]{8}$/;
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+
+    const passwordRegex =
+        /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/;
+
+    // ───────────────────────────────────────────
+    // FULL NAME VALIDATION
+    // ───────────────────────────────────────────
+
+    const nameVal =
+        document.getElementById("fullName").value.trim();
+
+    if (!nameVal) {
+        showError("fullName", "nameError");
+        valid = false;
+
+    } else if (!nameRegex.test(nameVal)) {
+        showError("fullName", "nameError");
+        valid = false;
+    }
+
+    // ───────────────────────────────────────────
+    // PATIENT LOGIN VALIDATION
+    // ───────────────────────────────────────────
+
+    if (role === "patient") {
+
+        const nid =
+            document.getElementById("nationalId").value.trim();
+
+        const ph =
+            document.getElementById("phone").value.trim();
+
+        // National ID Validation
+
+        if (!nid) {
+
+            showError("nationalId", "nidError");
+            valid = false;
+
+        } else if (!nationalIdRegex.test(nid)) {
+
+            showError("nationalId", "nidError");
+            valid = false;
+
+        } else if (repeatedDigitsRegex.test(nid)) {
+
+            showError("nationalId", "nidError");
             valid = false;
         }
 
-        if (role === "patient") {
-            const nid = document.getElementById("nationalId").value.trim();
-            const ph = document.getElementById("phone").value.trim();
+        // Phone Validation
 
-            if (!/^[0-9]{14}$/.test(nid)) { showError("nationalId", "nidError"); valid = false; }
-            if (!/^(010|011|012|015)[0-9]{8}$/.test(ph)) { showError("phone", "phoneError"); valid = false; }
+        if (!ph) {
 
-            if (!valid) return;
+            showError("phone", "phoneError");
+            valid = false;
 
-            try {
-                setLoading(true);
+        } else if (!phoneRegex.test(ph)) {
 
-                const res = await fetch("<?= BASE_URL ?>/auth/patientLogin", {
+            showError("phone", "phoneError");
+            valid = false;
+
+        } else if (/^(\d)\1+$/.test(ph)) {
+
+            showError("phone", "phoneError");
+            valid = false;
+        }
+
+        if (!valid) return;
+
+        // ───────────────────────────────────────
+        // API REQUEST
+        // ───────────────────────────────────────
+
+        try {
+
+            setLoading(true);
+
+            const res = await fetch(
+                "<?= BASE_URL ?>/auth/patientLogin",
+                {
                     method: "POST",
-                    headers: { "Content-Type": "application/json" },
+
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+
                     body: JSON.stringify({
                         national_id: nid,
                         phone: ph
                     })
-                });
-
-                const data = await res.json();
-
-                if (!res.ok || !data.ok) {
-                    alert(data.message || "Patient login failed");
-                    return;
                 }
+            );
 
-                window.location.href = data.redirect || "PatientDashboard.html";
+            const data = await res.json();
 
-            } catch (e) {
-                alert("Network error: " + e.message);
-            } finally {
-                setLoading(false);
+            if (!res.ok || !data.ok) {
+
+                alert(data.message || "Patient login failed");
+                return;
             }
 
-        } else {
-            const mail = document.getElementById("email").value.trim();
-            const pass = document.getElementById("password").value;
+            window.location.href =
+                data.redirect || "PatientDashboard.html";
 
-            if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mail)) { showError("email", "emailError"); valid = false; }
-            if (pass.length < 6) { showError("password", "passwordError"); valid = false; }
+        } catch (e) {
 
-            if (!valid) return;
+            alert("Network error: " + e.message);
 
-            try {
-                setLoading(true);
-      
-                const res = await fetch("<?= BASE_URL ?>/auth/staffLogin", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ email: mail, password: pass, portal: role })
-                });
+        } finally {
 
-                const data = await res.json();
+            setLoading(false);
+        }
 
-                if (!res.ok || !data.ok) {
-                    alert(data.message || "Login failed");
-                    return;
-                }
-
-                // Insurance first-time setup
- if (role === "insurance") {
-    if (!data.policy_completed) {
-        window.location.href = "<?= BASE_URL ?>/insurance/policy";
-        return;
     }
-}
 
+    // ───────────────────────────────────────────
+    // STAFF LOGIN VALIDATION
+    // ───────────────────────────────────────────
 
-                window.location.href = data.redirect || "landing_page.html";
+    else {
 
-            } catch (e) {
-                alert("Network error: " + e.message);
-            } finally {
-                setLoading(false);
+        const mail =
+            document.getElementById("email")
+                .value
+                .trim()
+                .toLowerCase();
+
+        const pass =
+            document.getElementById("password").value;
+
+        // Email Validation
+
+        if (!mail) {
+
+            showError("email", "emailError");
+            valid = false;
+
+        } else if (!emailRegex.test(mail)) {
+
+            showError("email", "emailError");
+            valid = false;
+        }
+
+        // Password Validation
+
+        if (!pass) {
+
+            showError("password", "passwordError");
+            valid = false;
+
+        } else if (!passwordRegex.test(pass)) {
+
+            showError("password", "passwordError");
+            valid = false;
+        }
+
+        if (!valid) return;
+
+        // ───────────────────────────────────────
+        // API REQUEST
+        // ───────────────────────────────────────
+
+        try {
+
+            setLoading(true);
+
+            const res = await fetch(
+                "<?= BASE_URL ?>/auth/staffLogin",
+                {
+                    method: "POST",
+
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+
+                    body: JSON.stringify({
+                        email: mail,
+                        password: pass,
+                        portal: role
+                    })
+                }
+            );
+
+            const data = await res.json();
+
+            if (!res.ok || !data.ok) {
+
+                alert(data.message || "Login failed");
+                return;
             }
+
+            // Insurance first-time setup
+
+            if (role === "insurance") {
+
+                if (!data.policy_completed) {
+
+                    window.location.href =
+                        "<?= BASE_URL ?>/insurance/policy";
+
+                    return;
+                }
+            }
+
+            window.location.href =
+                data.redirect || "landing_page.html";
+
+        } catch (e) {
+
+            alert("Network error: " + e.message);
+
+        } finally {
+
+            setLoading(false);
         }
     }
+}
 </script>
 
 </body>
