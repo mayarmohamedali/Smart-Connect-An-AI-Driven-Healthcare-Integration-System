@@ -325,19 +325,19 @@
                         <div class="mb-3">
                             <label class="form-label small fw-bold">Full Name</label>
                             <input type="text" id="fullName" class="form-control form-control-lg" placeholder="Ahmed Hassan">
-                            <small id="nameError" class="text-danger d-none">Please enter a valid name (letters only)</small>
+                            <small id="nameError" class="text-danger d-none"></small>
                         </div>
 
                         <div id="patient-only">
                             <div class="mb-3">
                                 <label class="form-label small fw-bold">National ID</label>
                                 <input type="text" id="nationalId" class="form-control form-control-lg" placeholder="2990101XXXXXXXX">
-                                <small id="nidError" class="text-danger d-none">National ID must be 14 digits</small>
+                                <small id="nidError" class="text-danger d-none"></small>
                             </div>
                             <div class="mb-3">
                                 <label class="form-label small fw-bold">Phone Number</label>
                                 <input type="text" id="phone" class="form-control form-control-lg" placeholder="010XXXXXXXX">
-                                <small id="phoneError" class="text-danger d-none">Enter a valid Egyptian phone number</small>
+                                <small id="phoneError" class="text-danger d-none"></small>
                             </div>
                         </div>
 
@@ -345,12 +345,12 @@
                             <div class="mb-3">
                                 <label class="form-label small fw-bold">Organization Email</label>
                                 <input type="email" id="email" class="form-control form-control-lg" placeholder="name@organization.com">
-                                <small id="emailError" class="text-danger d-none">Invalid email format</small>
+                                <small id="emailError" class="text-danger d-none"></small>
                             </div>
                             <div class="mb-3">
                                 <label class="form-label small fw-bold">Password</label>
                                 <input type="password" id="password" class="form-control form-control-lg" placeholder="••••••••">
-                                <small id="passwordError" class="text-danger d-none">Password must be at least 6 characters</small>
+                                <small id="passwordError" class="text-danger d-none"></small>
                             </div>
                         </div>
 
@@ -367,296 +367,240 @@
 </div>
 
 <script>
-    function selectRole(roleValue) {
-        document.getElementById("role").value = roleValue;
+/* ═══════════════════════════════════════════════════════════
+   Smart Connect — Login Validation
+   ───────────────────────────────────────────────────────────
+   Patient  : full name + national ID (14-digit Egyptian) + phone
+   Staff    : email + password (not-empty only — server checks)
+   No password complexity on LOGIN — server decides if it matches
+═══════════════════════════════════════════════════════════ */
 
-        document.querySelectorAll('.role-card').forEach(card => card.classList.remove('active'));
-        document.getElementById('card-' + roleValue).classList.add('active');
-
-        clearErrors();
-
-        if (roleValue === 'patient') {
-            document.getElementById("patient-only").classList.remove("d-none");
-            document.getElementById("org-only").classList.add("d-none");
-        } else {
-            document.getElementById("patient-only").classList.add("d-none");
-            document.getElementById("org-only").classList.remove("d-none");
-        }
-    }
-
-    function clearErrors() {
-        document.querySelectorAll(".text-danger").forEach(e => e.classList.add("d-none"));
-        document.querySelectorAll("input").forEach(i => i.classList.remove("border-danger"));
-    }
-
-    function showError(inputId, errorId) {
-        document.getElementById(inputId).classList.add("border-danger");
-        document.getElementById(errorId).classList.remove("d-none");
-    }
-
-    function setLoading(isLoading) {
-        const btn = document.getElementById("submitBtn");
-        if (isLoading) {
-            btn.disabled = true;
-            btn.innerText = "Please wait...";
-        } else {
-            btn.disabled = false;
-            btn.innerText = "Continue";
-        }
-    }
-
-// ═══════════════════════════════════════════════
-// SMART CONNECT — ADVANCED LOGIN VALIDATION
-// Replace your current handleAction() with this
-// ═══════════════════════════════════════════════
-
-async function handleAction() {
-
+/* ── role switcher ── */
+function selectRole(roleValue) {
+    document.getElementById('role').value = roleValue;
+    document.querySelectorAll('.role-card').forEach(c => c.classList.remove('active'));
+    document.getElementById('card-' + roleValue).classList.add('active');
     clearErrors();
+    if (roleValue === 'patient') {
+        document.getElementById('patient-only').classList.remove('d-none');
+        document.getElementById('org-only').classList.add('d-none');
+    } else {
+        document.getElementById('patient-only').classList.add('d-none');
+        document.getElementById('org-only').classList.remove('d-none');
+    }
+}
+
+/* ── error helpers ── */
+function clearErrors() {
+    document.querySelectorAll('.text-danger').forEach(e => e.classList.add('d-none'));
+    document.querySelectorAll('input').forEach(i => i.classList.remove('border-danger'));
+}
+
+function showError(inputId, errorId, msg) {
+    const inp = document.getElementById(inputId);
+    const err = document.getElementById(errorId);
+    if (inp) inp.classList.add('border-danger');
+    if (err) {
+        if (msg) err.textContent = msg;
+        err.classList.remove('d-none');
+    }
+}
+
+function setLoading(on) {
+    const btn = document.getElementById('submitBtn');
+    btn.disabled = on;
+    btn.innerText = on ? 'Please wait...' : 'Continue';
+}
+
+/* ── Egyptian National ID decoder (same as Add Patient) ── */
+function decodeNationalId(nid) {
+    if (!/^\d{14}$/.test(nid)) return null;
+    const c = nid[0];
+    if (c !== '2' && c !== '3') return null;
+    const year  = (c === '2' ? '19' : '20') + nid.substring(1, 3);
+    const month = nid.substring(3, 5);
+    const day   = nid.substring(5, 7);
+    const gov   = parseInt(nid.substring(7, 9), 10);
+    const d = new Date(+year, +month - 1, +day);
+    if (
+        isNaN(d.getTime()) ||
+        d.getFullYear() !== +year ||
+        d.getMonth()    !== +month - 1 ||
+        d.getDate()     !== +day
+    ) return null;
+    if (gov < 1 || gov > 35) return null;
+    const age = Math.floor((Date.now() - d.getTime()) / 31557600000);
+    if (age < 0 || age > 120) return null;
+    return { age, gender: parseInt(nid[12]) % 2 === 1 ? 'M' : 'F' };
+}
+
+/* ── field validators — return true = ok ── */
+function validateFullName() {
+    const v = document.getElementById('fullName').value.trim();
+    if (!v) {
+        showError('fullName', 'nameError', 'Full name is required.'); return false;
+    }
+    if (!/^[A-Za-z\s]{1,}$/.test(v)) {
+        showError('fullName', 'nameError', 'Name must contain letters and spaces only.'); return false;
+    }
+    const words = v.split(/\s+/).filter(w => w.length > 0);
+    if (words.length < 2) {
+        showError('fullName', 'nameError', 'Please enter your first and last name.'); return false;
+    }
+    if (v.length < 3 || v.length > 100) {
+        showError('fullName', 'nameError', 'Name must be between 3 and 100 characters.'); return false;
+    }
+    return true;
+}
+
+function validateNationalId() {
+    const v = document.getElementById('nationalId').value.trim();
+    if (!v) {
+        showError('nationalId', 'nidError', 'National ID is required.'); return false;
+    }
+    if (!/^\d+$/.test(v)) {
+        showError('nationalId', 'nidError', 'National ID must contain digits only.'); return false;
+    }
+    if (v.length !== 14) {
+        showError('nationalId', 'nidError', `Must be exactly 14 digits (you entered ${v.length}).`); return false;
+    }
+    if (v[0] !== '2' && v[0] !== '3') {
+        showError('nationalId', 'nidError', 'First digit must be 2 (born 1900s) or 3 (born 2000s).'); return false;
+    }
+    if (/^(\d)+$/.test(v)) {
+        showError('nationalId', 'nidError', 'Invalid National ID — all digits are the same.'); return false;
+    }
+    if (!decodeNationalId(v)) {
+        showError('nationalId', 'nidError', 'Invalid National ID — check the birth date embedded in digits 2–7.'); return false;
+    }
+    return true;
+}
+
+function validatePhone() {
+    const v = document.getElementById('phone').value.trim();
+    if (!v) {
+        showError('phone', 'phoneError', 'Phone number is required.'); return false;
+    }
+    if (!/^\d+$/.test(v)) {
+        showError('phone', 'phoneError', 'Phone must contain digits only.'); return false;
+    }
+    if (v.length !== 11) {
+        showError('phone', 'phoneError', `Egyptian numbers are 11 digits (you entered ${v.length}).`); return false;
+    }
+    if (!/^(010|011|012|015)\d{8}$/.test(v)) {
+        showError('phone', 'phoneError', 'Must start with 010, 011, 012, or 015.'); return false;
+    }
+    if (/^(\d)+$/.test(v)) {
+        showError('phone', 'phoneError', 'Invalid phone — all digits are the same.'); return false;
+    }
+    return true;
+}
+
+function validateEmail() {
+    const v = document.getElementById('email').value.trim().toLowerCase();
+    if (!v) {
+        showError('email', 'emailError', 'Email is required.'); return false;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v)) {
+        showError('email', 'emailError', 'Enter a valid email address (e.g. name@org.com).'); return false;
+    }
+    return true;
+}
+
+function validatePassword() {
+    const v = document.getElementById('password').value;
+    if (!v) {
+        showError('password', 'passwordError', 'Password is required.'); return false;
+    }
+    /* No complexity rules on login — server will reject wrong passwords */
+    return true;
+}
+
+/* ── main submit handler ── */
+async function handleAction() {
+    clearErrors();
+
+    const role = document.getElementById('role').value;
+    const allowed = ['patient', 'hospital', 'insurance', 'admin'];
+    if (!allowed.includes(role)) { alert('Invalid role selected.'); return; }
 
     let valid = true;
 
-    const role = document.getElementById("role").value;
+    if (role === 'patient') {
 
-    // Allowed roles protection
-    const allowedRoles = ['patient', 'hospital', 'insurance', 'admin'];
-
-    if (!allowedRoles.includes(role)) {
-        alert("Invalid role selected");
-        return;
-    }
-
-    // ───────────────────────────────────────────
-    // REGEX RULES
-    // ───────────────────────────────────────────
-
-    const nameRegex = /^[A-Za-z\u0600-\u06FF\s]{3,50}$/;
-
-    const nationalIdRegex = /^[0-9]{14}$/;
-
-    const repeatedDigitsRegex = /^(\d)\1+$/;
-
-    const phoneRegex = /^(010|011|012|015)[0-9]{8}$/;
-
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
-
-    const passwordRegex =
-        /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/;
-
-    // ───────────────────────────────────────────
-    // FULL NAME VALIDATION
-    // ───────────────────────────────────────────
-
-    const nameVal =
-        document.getElementById("fullName").value.trim();
-
-    if (!nameVal) {
-        showError("fullName", "nameError");
-        valid = false;
-
-    } else if (!nameRegex.test(nameVal)) {
-        showError("fullName", "nameError");
-        valid = false;
-    }
-
-    // ───────────────────────────────────────────
-    // PATIENT LOGIN VALIDATION
-    // ───────────────────────────────────────────
-
-    if (role === "patient") {
-
-        const nid =
-            document.getElementById("nationalId").value.trim();
-
-        const ph =
-            document.getElementById("phone").value.trim();
-
-        // National ID Validation
-
-        if (!nid) {
-
-            showError("nationalId", "nidError");
-            valid = false;
-
-        } else if (!nationalIdRegex.test(nid)) {
-
-            showError("nationalId", "nidError");
-            valid = false;
-
-        } else if (repeatedDigitsRegex.test(nid)) {
-
-            showError("nationalId", "nidError");
-            valid = false;
-        }
-
-        // Phone Validation
-
-        if (!ph) {
-
-            showError("phone", "phoneError");
-            valid = false;
-
-        } else if (!phoneRegex.test(ph)) {
-
-            showError("phone", "phoneError");
-            valid = false;
-
-        } else if (/^(\d)\1+$/.test(ph)) {
-
-            showError("phone", "phoneError");
-            valid = false;
-        }
-
+        /* Patient: name + national ID + phone */
+        if (!validateFullName())   valid = false;
+        if (!validateNationalId()) valid = false;
+        if (!validatePhone())      valid = false;
         if (!valid) return;
 
-        // ───────────────────────────────────────
-        // API REQUEST
-        // ───────────────────────────────────────
-
         try {
-
             setLoading(true);
-
-            const res = await fetch(
-                "<?= BASE_URL ?>/auth/patientLogin",
-                {
-                    method: "POST",
-
-                    headers: {
-                        "Content-Type": "application/json"
-                    },
-
-                    body: JSON.stringify({
-                        national_id: nid,
-                        phone: ph
-                    })
-                }
-            );
-
+            const nid  = document.getElementById('nationalId').value.trim();
+            const ph   = document.getElementById('phone').value.trim();
+            const res  = await fetch('<?= BASE_URL ?>/auth/patientLogin', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ national_id: nid, phone: ph })
+            });
             const data = await res.json();
-
-            if (!res.ok || !data.ok) {
-
-                alert(data.message || "Patient login failed");
-                return;
-            }
-
-            window.location.href =
-                data.redirect || "PatientDashboard.html";
-
+            if (!res.ok || !data.ok) { alert(data.message || 'Patient login failed.'); return; }
+            window.location.href = data.redirect || 'PatientDashboard.html';
         } catch (e) {
-
-            alert("Network error: " + e.message);
-
+            alert('Network error: ' + e.message);
         } finally {
-
             setLoading(false);
         }
 
-    }
+    } else {
 
-    // ───────────────────────────────────────────
-    // STAFF LOGIN VALIDATION
-    // ───────────────────────────────────────────
-
-    else {
-
-        const mail =
-            document.getElementById("email")
-                .value
-                .trim()
-                .toLowerCase();
-
-        const pass =
-            document.getElementById("password").value;
-
-        // Email Validation
-
-        if (!mail) {
-
-            showError("email", "emailError");
-            valid = false;
-
-        } else if (!emailRegex.test(mail)) {
-
-            showError("email", "emailError");
-            valid = false;
-        }
-
-        // Password Validation
-
-        if (!pass) {
-
-            showError("password", "passwordError");
-            valid = false;
-
-        } else if (!passwordRegex.test(pass)) {
-
-            showError("password", "passwordError");
-            valid = false;
-        }
-
+        /* Staff (hospital / insurance / admin): email + password */
+        if (!validateEmail())    valid = false;
+        if (!validatePassword()) valid = false;
         if (!valid) return;
 
-        // ───────────────────────────────────────
-        // API REQUEST
-        // ───────────────────────────────────────
-
         try {
-
             setLoading(true);
-
-            const res = await fetch(
-                "<?= BASE_URL ?>/auth/staffLogin",
-                {
-                    method: "POST",
-
-                    headers: {
-                        "Content-Type": "application/json"
-                    },
-
-                    body: JSON.stringify({
-                        email: mail,
-                        password: pass,
-                        portal: role
-                    })
-                }
-            );
-
+            const mail = document.getElementById('email').value.trim().toLowerCase();
+            const pass = document.getElementById('password').value;
+            const res  = await fetch('<?= BASE_URL ?>/auth/staffLogin', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email: mail, password: pass, portal: role })
+            });
             const data = await res.json();
+            if (!res.ok || !data.ok) { alert(data.message || 'Login failed.'); return; }
 
-            if (!res.ok || !data.ok) {
-
-                alert(data.message || "Login failed");
+            /* Insurance first-time policy setup */
+            if (role === 'insurance' && !data.policy_completed) {
+                window.location.href = '<?= BASE_URL ?>/insurance/policy';
                 return;
             }
 
-            // Insurance first-time setup
-
-            if (role === "insurance") {
-
-                if (!data.policy_completed) {
-
-                    window.location.href =
-                        "<?= BASE_URL ?>/insurance/policy";
-
-                    return;
-                }
-            }
-
-            window.location.href =
-                data.redirect || "landing_page.html";
-
+            window.location.href = data.redirect || 'landing_page.html';
         } catch (e) {
-
-            alert("Network error: " + e.message);
-
+            alert('Network error: ' + e.message);
         } finally {
-
             setLoading(false);
         }
     }
 }
+
+/* ── live blur listeners ── */
+document.addEventListener('DOMContentLoaded', function () {
+    document.getElementById('fullName').addEventListener('blur',    validateFullName);
+    document.getElementById('nationalId').addEventListener('blur',  validateNationalId);
+    document.getElementById('phone').addEventListener('blur',       validatePhone);
+    document.getElementById('email').addEventListener('blur',       validateEmail);
+    document.getElementById('password').addEventListener('blur',    validatePassword);
+
+    /* digits-only enforcement while typing */
+    ['nationalId', 'phone'].forEach(function(id) {
+        document.getElementById(id).addEventListener('input', function() {
+            this.value = this.value.replace(/\D/g, '');
+        });
+    });
+});
 </script>
 
 </body>
