@@ -195,12 +195,31 @@
               <div class="range-bar-wrap">
                 <div class="range-bar-fill bg-<?= $fc_color ?>" style="width:<?= round($fill_pct) ?>%;left:0;"></div>
               </div>
-              <p class="text-muted" style="font-size:.72rem;">Uncertainty ±<?= number_format($ml_uncertainty, 1) ?> pp</p>
+
+             <!-- <p class="text-muted" style="font-size:.72rem;">Uncertainty ±<?= number_format($ml_uncertainty, 1) ?> pp</p> -->
+
+              <?php if ($ml_confidence > 0): ?>
+              <?php $ml_conf_color = $ml_confidence >= 90 ? 'success' : ($ml_confidence >= 75 ? 'info' : ($ml_confidence >= 55 ? 'warning' : 'danger')); ?>
               <hr class="my-2">
-              <div class="text-left" style="font-size:.82rem;">
-                <span class="font-weight-bold text-<?= $fc_color ?>"><i class="fas fa-exclamation-circle mr-1"></i></span>
-                <?= Validator::sanitizeInput($ml_action) ?>
+              <div class="d-flex justify-content-between align-items-center mb-1">
+                <small class="text-muted" style="font-size:.72rem;text-transform:uppercase;letter-spacing:.4px;">
+                  <i class="fas fa-chart-bar mr-1"></i>Model Confidence
+                </small>
+                <small class="font-weight-bold text-<?= $ml_conf_color ?>">
+                  <?= number_format($ml_confidence, 1) ?>% — <?= Validator::sanitizeInput($ml_conf_label) ?>
+                </small>
               </div>
+              <div class="progress" style="height:8px;border-radius:6px;">
+                <div class="progress-bar bg-<?= $ml_conf_color ?>"
+                     role="progressbar"
+                     style="width:<?= min(100,$ml_confidence) ?>%;border-radius:6px;">
+                </div>
+              </div>
+              <small class="text-muted" style="font-size:.7rem;">
+                Derived from ML vs trend agreement — lower uncertainty = higher confidence
+              </small>
+              <?php endif; ?>
+
             </div>
           </div>
         </div>

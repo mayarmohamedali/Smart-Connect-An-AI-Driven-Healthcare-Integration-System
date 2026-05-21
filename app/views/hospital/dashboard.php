@@ -155,8 +155,8 @@ $next_month_n = $today_month % 12 + 1;
         <span class="badge badge-<?= $records_this_month >= 5 ? 'primary' : 'secondary' ?> p-2">
           <i class="fas fa-database mr-1"></i>
           <?= $records_this_month ?> records this month
-          <?php if ($records_this_month < 10): ?>
-            &mdash; need <?= 10 - $records_this_month ?> more for forecast
+          <?php if ($records_this_month < 5): ?>
+            &mdash; need <?= 5 - $records_this_month ?> more for forecast
           <?php endif; ?>
         </span>
       </div>
@@ -194,9 +194,9 @@ $next_month_n = $today_month % 12 + 1;
         <i class="fas fa-info-circle fa-2x mt-1"></i>
         <div style="flex:1;">
           <strong>Collecting patient data for forecast...</strong><br>
-          <small><?= $records_this_month ?> of 20 records needed this month. Showing historical baseline until enough records are collected.</small>
+          <small><?= $records_this_month ?> of 5 records needed this month. Showing historical baseline until enough records are collected.</small>
           <div class="progress mt-2" style="height:8px; border-radius:4px;">
-            <div class="progress-bar bg-info" style="width:<?= min(100, ($records_this_month / 20) * 100) ?>%"></div>
+            <div class="progress-bar bg-info" style="width:<?= min(100, ($records_this_month / 5) * 100) ?>%"></div>
           </div>
         </div>
       </div>
@@ -228,6 +228,36 @@ $next_month_n = $today_month % 12 + 1;
               &nbsp;&middot;&nbsp;
               Severity: <span class="badge badge-<?= $color ?>"><?= ucfirst($severity) ?></span>
             </p>
+
+            <?php
+              $hosp_conf       = (float)($forecast_entry['confidence_score'] ?? 0);
+              $hosp_conf_label = $forecast_entry['confidence_label'] ?? '';
+              $hosp_conf_color = $hosp_conf >= 80 ? 'success' : ($hosp_conf >= 60 ? 'info' : ($hosp_conf >= 40 ? 'warning' : 'danger'));
+            ?>
+            <?php if ($hosp_conf > 0 && $forecast_source === 'live'): ?>
+            <div class="mt-2" style="max-width:380px;">
+              <div class="d-flex justify-content-between align-items-center mb-1">
+                <small class="font-weight-bold text-muted" style="font-size:.72rem;text-transform:uppercase;letter-spacing:.4px;">
+                  <i class="fas fa-chart-bar mr-1"></i>Model Confidence
+                </small>
+                <small class="font-weight-bold text-<?= $hosp_conf_color ?>">
+                  <?= number_format($hosp_conf, 1) ?>% &mdash; <?= e($hosp_conf_label) ?>
+                </small>
+              </div>
+              <div class="progress" style="height:8px;border-radius:6px;">
+                <div class="progress-bar bg-<?= $hosp_conf_color ?>"
+                     role="progressbar"
+                     style="width:<?= min(100, $hosp_conf) ?>%;border-radius:6px;">
+                </div>
+              </div>
+              <!---
+              <small class="text-muted" style="font-size:.7rem;">
+                Average predict_proba score for <?= e($disease) ?> across all <?= (int)$pts_used ?> patients
+              </small>
+              -->
+            </div>
+            <?php endif; ?>
+
           </div>
           <span class="badge badge-<?= $color ?> badge-pill p-2" style="font-size:1rem;">
             <?= strtoupper($next_month_label) ?>

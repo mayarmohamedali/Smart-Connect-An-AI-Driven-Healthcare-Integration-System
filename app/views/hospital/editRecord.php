@@ -103,7 +103,8 @@ function symSel($recordVal, $optionVal): string {
         <ul id="summaryList" style="margin:0;padding-left:18px;"></ul>
       </div>
 
-      <form method="POST" id="editForm" novalidate>
+      <form method="POST" id="editForm" novalidate
+            data-national-id="<?= e($patient['national_id']) ?>">
         <input type="hidden" name="action" value="update_record">
 
         <!-- ══ 1. ADMISSION INFO ════════════════════════════════════ -->
@@ -111,10 +112,11 @@ function symSel($recordVal, $optionVal): string {
         <div class="row">
 
           <div class="col-md-2 form-group">
-            <label>Age <span class="text-danger">*</span></label>
-            <input type="number" name="age" id="age" min="0" max="120" class="form-control"
-                   value="<?= e($record["age"]) ?>" placeholder="0–120">
-            <div class="field-error" id="err_age"></div>
+            <label>Age <small class="text-muted">(auto)</small></label>
+            <input type="number" name="age" id="age" class="form-control"
+                   value="<?= e($record["age"]) ?>"
+                   style="background:#f0f4ff;" readonly
+                   title="Auto-calculated from patient National ID">
           </div>
 
           <div class="col-md-3 form-group">
@@ -138,7 +140,6 @@ function symSel($recordVal, $optionVal): string {
                    style="background:#f0f4ff;" readonly title="Auto-calculated from dates">
           </div>
 
-  <!--
           <div class="col-md-2 form-group">
             <label>Avg Length of Stay</label>
             <input type="number" step="0.000001" name="avg_length_stay" id="avg_length_stay"
@@ -146,7 +147,6 @@ function symSel($recordVal, $optionVal): string {
                    value="<?= e($record["avg_length_stay"]) ?>">
             <div class="field-error" id="err_avg_length_stay"></div>
           </div>
--->
 
           <div class="col-md-2 form-group">
             <label>Month <small class="text-muted">(1–12)</small></label>
@@ -172,7 +172,6 @@ function symSel($recordVal, $optionVal): string {
             </select>
           </div>
 
-              <!--
           <div class="col-md-3 form-group">
             <label>Total Admission Count</label>
             <input type="number" name="admission_count" id="admission_count"
@@ -180,7 +179,7 @@ function symSel($recordVal, $optionVal): string {
                    value="<?= e($record["admission_count"]) ?>">
             <div class="field-error" id="err_admission_count"></div>
           </div>
--->
+
         </div>
 
         <hr>
@@ -709,17 +708,26 @@ Object.keys(rangeRules).forEach(id => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// AGE
+// AGE — AUTO-CALCULATED FROM NATIONAL ID (Egyptian format: digit 1 = century,
+//        digits 2-3 = YY, 4-5 = MM, 6-7 = DD)
 // ─────────────────────────────────────────────────────────────────────────────
-$id('age').addEventListener('blur', function () {
-  if (this.value === '') { clearState('age'); return; }
-  const v = parseInt(this.value);
-  if (isNaN(v) || v < 0 || v > 120) {
-    setError('age', 'Age must be between 0 and 120.');
-  } else {
-    clearError('age');
+(function () {
+  const nid = document.getElementById('editForm').dataset.nationalId || '';
+  if (nid.length >= 7) {
+    const century = nid[0] === '3' ? 2000 : 1900;
+    const yy  = parseInt(nid.substring(1, 3), 10);
+    const mm  = parseInt(nid.substring(3, 5), 10) - 1;
+    const dd  = parseInt(nid.substring(5, 7), 10);
+    const dob = new Date(century + yy, mm, dd);
+    const today = new Date();
+    let age = today.getFullYear() - dob.getFullYear();
+    const monthDiff = today.getMonth() - dob.getMonth();
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < dob.getDate())) age--;
+    if (age >= 0 && age <= 120) {
+      $id('age').value = age;
+    }
   }
-});
+})();
 
 // ─────────────────────────────────────────────────────────────────────────────
 // DIAGNOSIS
@@ -788,12 +796,7 @@ function updateCalcPreview() {
 $id('editForm').addEventListener('submit', function (e) {
   const errors = [];
 
-  // Age
-  const age = parseInt($id('age').value);
-  if ($id('age').value === '' || isNaN(age) || age < 0 || age > 120) {
-    setError('age', 'Age is required and must be between 0 and 120.');
-    errors.push('Age');
-  }
+  // Age is auto-calculated from National ID — no manual validation needed
 
   // Dates
   if (!validateDates()) errors.push('Admission dates');

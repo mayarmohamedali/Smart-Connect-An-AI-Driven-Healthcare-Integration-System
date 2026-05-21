@@ -142,6 +142,8 @@ class InsuranceController {
         $ml_lower       = $ml_ok ? (float)($ml_forecast['lower_pct']          ?? 0) : 0;
         $ml_upper       = $ml_ok ? (float)($ml_forecast['upper_pct']          ?? 0) : 0;
         $ml_uncertainty = $ml_ok ? (float)($ml_forecast['uncertainty_pp']     ?? 0) : 0;
+        $ml_confidence  = $ml_ok ? (float)($ml_forecast['confidence_score']  ?? 0) : 0;
+        $ml_conf_label  = $ml_ok ? (string)($ml_forecast['confidence_label'] ?? 'N/A') : 'N/A';
         $ml_action      = $ml_ok ? ($ml_forecast['action'] ?? '')                    : '';
         $ml_year        = $ml_ok ? (int)($ml_forecast['predicted_year'] ?? date('Y') + 1) : (int)date('Y') + 1;
 

@@ -124,18 +124,17 @@ function e($v): string { return htmlspecialchars((string)($v??''), ENT_QUOTES, '
         <ul id="summaryList" style="margin:0;padding-left:18px;"></ul>
       </div>
 
-      <form method="POST" id="recordForm" novalidate>
+      <form method="POST" id="recordForm" novalidate
+            data-national-id="<?= e($patient['national_id']) ?>">
 
         <!-- ══ 1. ADMISSION INFO ════════════════════════════════════ -->
         <p class="section-title"><i class="fas fa-calendar-alt mr-1"></i> 1. Admission Info</p>
         <div class="row">
 
           <div class="col-md-2 form-group">
-            <label>Age <span class="text-danger">*</span></label>
-            <input type="number" name="age" id="age" min="0" max="120" class="form-control"
-                   placeholder="1–120">
-           <!-- <span class="range-hint">1 – 120 years</span> -->
-            <div class="field-error" id="err_age"></div>
+            <label>Age <small class="text-muted">(auto)</small></label>
+            <input type="number" name="age" id="age" class="form-control auto-filled"
+                   readonly title="Auto-calculated from patient National ID">
           </div>
 
           <div class="col-md-3 form-group">
@@ -156,14 +155,14 @@ function e($v): string { return htmlspecialchars((string)($v??''), ENT_QUOTES, '
                    id="length_of_stay" readonly title="Auto-calculated from dates">
           </div>
 
-      <!--
+          <!--
           <div class="col-md-2 form-group">
             <label>Avg Length of Stay</label>
             <input type="number" step="0.01" name="avg_length_stay" id="avg_length_stay"
                    min="0" max="365" class="form-control" placeholder="e.g. 5.5">
             <div class="field-error" id="err_avg_los"></div>
           </div>
--->
+      -->
           <div class="col-md-2 form-group">
             <label>Month <small class="text-muted">(1–12)</small></label>
             <input type="number" name="month" min="1" max="12" class="form-control auto-filled"
@@ -181,6 +180,7 @@ function e($v): string { return htmlspecialchars((string)($v??''), ENT_QUOTES, '
             <input type="text" name="day_of_week" class="form-control auto-filled"
                    id="day_of_week" readonly title="Auto-filled from check-in date">
           </div>
+
       <!--
           <div class="col-md-2 form-group">
             <label>Total Admission Count</label>
@@ -200,35 +200,30 @@ function e($v): string { return htmlspecialchars((string)($v??''), ENT_QUOTES, '
             <label>CBC-HB1 <small class="text-muted">(g/dL)</small></label>
             <input type="number" step="0.01" name="cbc_hb1" id="cbc_hb1"
                    min="1" max="25" class="form-control lab-input" placeholder="1–25">
-            <!-- <span class="range-hint" id="hint_hb1">Normal: 12–17</span> -->
             <div class="field-error" id="err_cbc_hb1"></div>
           </div>
           <div class="col-md-2 form-group">
             <label>CBC-TLC1 <small class="text-muted">(×10³/µL)</small></label>
             <input type="number" step="0.01" name="cbc_tlc1" id="cbc_tlc1"
                    min="0.5" max="100" class="form-control lab-input" placeholder="0.5–100">
-             <!--<span class="range-hint" id="hint_tlc1">Normal: 4–11</span>-->
             <div class="field-error" id="err_cbc_tlc1"></div>
           </div>
           <div class="col-md-3 form-group">
             <label>CBC-PLAT1 <small class="text-muted">(×10³/µL)</small></label>
             <input type="number" step="0.01" name="cbc_plat1" id="cbc_plat1"
                    min="5" max="1500" class="form-control lab-input" placeholder="5–1500">
-            <!-- <span class="range-hint" id="hint_plat1">Normal: 150–400</span> -->
             <div class="field-error" id="err_cbc_plat1"></div>
           </div>
           <div class="col-md-2 form-group">
             <label>Blood Urea 1 <small class="text-muted">(mg/dL)</small></label>
             <input type="number" step="0.01" name="blood_uria1" id="blood_uria1"
                    min="1" max="500" class="form-control lab-input" placeholder="1–500">
-            <!-- <span class="range-hint" id="hint_urea1">Normal: 7–25</span> -->
             <div class="field-error" id="err_blood_uria1"></div>
           </div>
           <div class="col-md-3 form-group">
             <label>Blood Creatinine 1 <small class="text-muted">(mg/dL)</small></label>
             <input type="number" step="0.01" name="blood_creatinine1" id="blood_creatinine1"
                    min="0.1" max="30" class="form-control lab-input" placeholder="0.1–30">
-            <!-- <span class="range-hint" id="hint_crn1">Normal: 0.6–1.2</span> -->
             <div class="field-error" id="err_blood_creatinine1"></div>
           </div>
         </div>
@@ -239,35 +234,30 @@ function e($v): string { return htmlspecialchars((string)($v??''), ENT_QUOTES, '
             <label>CBC-HB2 <small class="text-muted">(g/dL)</small></label>
             <input type="number" step="0.01" name="cbc_hb2" id="cbc_hb2"
                    min="1" max="25" class="form-control lab-input" placeholder="1–25">
-            <!-- <span class="range-hint" id="hint_hb2">Normal: 12–17</span> -->
             <div class="field-error" id="err_cbc_hb2"></div>
           </div>
           <div class="col-md-2 form-group">
             <label>CBC-TLC2 <small class="text-muted">(×10³/µL)</small></label>
             <input type="number" step="0.01" name="cbc_tlc2" id="cbc_tlc2"
                    min="0.5" max="100" class="form-control lab-input" placeholder="0.5–100">
-            <!-- <span class="range-hint" id="hint_tlc2">Normal: 4–11</span> -->
             <div class="field-error" id="err_cbc_tlc2"></div>
           </div>
           <div class="col-md-3 form-group">
             <label>CBC-PLAT2 <small class="text-muted">(×10³/µL)</small></label>
             <input type="number" step="0.01" name="cbc_plat2" id="cbc_plat2"
                    min="5" max="1500" class="form-control lab-input" placeholder="5–1500">
-            <!-- <span class="range-hint" id="hint_plat2">Normal: 150–400</span> -->
             <div class="field-error" id="err_cbc_plat2"></div>
           </div>
           <div class="col-md-2 form-group">
             <label>Blood Urea 2 <small class="text-muted">(mg/dL)</small></label>
             <input type="number" step="0.01" name="blood_uria2" id="blood_uria2"
                    min="1" max="500" class="form-control lab-input" placeholder="1–500">
-            <!-- <span class="range-hint" id="hint_urea2">Normal: 7–25</span> -->
             <div class="field-error" id="err_blood_uria2"></div>
           </div>
           <div class="col-md-3 form-group">
             <label>Blood Creatinine 2 <small class="text-muted">(mg/dL)</small></label>
             <input type="number" step="0.01" name="blood_creatinine2" id="blood_creatinine2"
                    min="0.1" max="30" class="form-control lab-input" placeholder="0.1–30">
-            <!-- <span class="range-hint" id="hint_crn2">Normal: 0.6–1.2</span> -->
             <div class="field-error" id="err_blood_creatinine2"></div>
           </div>
         </div>
@@ -301,7 +291,6 @@ function e($v): string { return htmlspecialchars((string)($v??''), ENT_QUOTES, '
             <label>BMI</label>
             <input type="number" step="0.01" name="bmi" id="bmi"
                    min="10" max="70" class="form-control" placeholder="10–70">
-            <!-- <span class="range-hint" id="hint_bmi">Normal: 18.5–24.9</span> -->
             <div class="field-error" id="err_bmi"></div>
           </div>
 
@@ -309,7 +298,6 @@ function e($v): string { return htmlspecialchars((string)($v??''), ENT_QUOTES, '
             <label>Glucose <small class="text-muted">(mg/dL)</small></label>
             <input type="number" step="0.01" name="glucose" id="glucose"
                    min="20" max="600" class="form-control" placeholder="20–600">
-            <!-- <span class="range-hint" id="hint_glucose">Normal: 70–100</span> -->
             <div class="field-error" id="err_glucose"></div>
           </div>
 
@@ -317,7 +305,6 @@ function e($v): string { return htmlspecialchars((string)($v??''), ENT_QUOTES, '
             <label>Cholesterol <small class="text-muted">(mg/dL)</small></label>
             <input type="number" step="0.01" name="cholesterol_level" id="cholesterol_level"
                    min="50" max="500" class="form-control" placeholder="50–500">
-            <!-- <span class="range-hint" id="hint_chol">Normal: &lt;200</span> -->
             <div class="field-error" id="err_cholesterol"></div>
           </div>
 
@@ -325,7 +312,6 @@ function e($v): string { return htmlspecialchars((string)($v??''), ENT_QUOTES, '
             <label>Systolic BP <small class="text-muted">(mmHg)</small></label>
             <input type="number" step="1" name="systolic_bp" id="systolic_bp"
                    min="50" max="300" class="form-control" placeholder="50–300">
-            <!-- <span class="range-hint" id="hint_bp">Normal: 90–120</span> -->
             <div class="field-error" id="err_systolic_bp"></div>
           </div>
 
@@ -370,7 +356,6 @@ function e($v): string { return htmlspecialchars((string)($v??''), ENT_QUOTES, '
             <label>Sleep Hours</label>
             <input type="number" step="0.1" min="0" max="24" name="sleep_hours" id="sleep_hours"
                    class="form-control" placeholder="0–24">
-            <!-- <span class="range-hint">Recommended: 6–9 hrs</span> -->
             <div class="field-error" id="err_sleep"></div>
           </div>
 
@@ -754,17 +739,26 @@ Object.keys(rangeRules).forEach(id => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// AGE VALIDATION
+// AGE — AUTO-CALCULATED FROM NATIONAL ID (Egyptian format: digits 2-7 = YYMMDD)
 // ─────────────────────────────────────────────────────────────────────────────
-$('age').addEventListener('blur', function () {
-  const v = parseInt(this.value);
-  if (this.value === '') { clearState('age'); return; }
-  if (isNaN(v) || v < 0 || v > 120) {
-    setError('age', 'Age must be between 0 and 120.');
-  } else {
-    clearError('age');
+(function () {
+  const nid = document.getElementById('recordForm').dataset.nationalId || '';
+  if (nid.length >= 7) {
+    // Digit 1: century indicator (2 = 1900s, 3 = 2000s)
+    const century = nid[0] === '3' ? 2000 : 1900;
+    const yy  = parseInt(nid.substring(1, 3), 10);
+    const mm  = parseInt(nid.substring(3, 5), 10) - 1; // JS months 0-based
+    const dd  = parseInt(nid.substring(5, 7), 10);
+    const dob = new Date(century + yy, mm, dd);
+    const today = new Date();
+    let age = today.getFullYear() - dob.getFullYear();
+    const monthDiff = today.getMonth() - dob.getMonth();
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < dob.getDate())) age--;
+    if (age >= 0 && age <= 120) {
+      $('age').value = age;
+    }
   }
-});
+})();
 
 // ─────────────────────────────────────────────────────────────────────────────
 // OTHER NUMERIC FIELDS
@@ -869,12 +863,7 @@ function updateCalcPreview() {
 $('recordForm').addEventListener('submit', function (e) {
   const errors = [];
 
-  // 1. Required: age
-  const age = parseInt($('age').value);
-  if ($('age').value === '' || isNaN(age) || age < 0 || age > 120) {
-    setError('age', 'Age is required and must be between 0 and 120.');
-    errors.push('Age');
-  }
+  // Age is auto-calculated from National ID — no manual validation needed
 
   // 2. Required: check-in date
   if (!validateDates()) {
