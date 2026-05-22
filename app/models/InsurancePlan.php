@@ -274,14 +274,30 @@ class InsurancePlan {
     // ── Update completion status ──────────────────────────
     public function updateInsuranceCompletionStatus(int $insurance_id): void {
 
+        // Count how many of the 4 required policy types have at least
+        // one enabled service saved in plan_service_coverage
         $stmt = $this->conn->prepare("
-            UPDATE medical_insurances
-            SET policy_completed = 1
-            WHERE insurance_id = ?
+            SELECT COUNT(DISTINCT ip.id) AS configured_plans
+            FROM insurance_plan ip
+            INNER JOIN plan_service_coverage psc
+                ON psc.insurance_plan_id = ip.id AND psc.is_enabled = 1
+            WHERE ip.insurance_id = ?
         ");
-
         $stmt->bind_param("i", $insurance_id);
         $stmt->execute();
+        $row = $stmt->get_result()->fetch_assoc();
         $stmt->close();
+
+        // Only mark completed when all 4 policy types are configured
+        $is_completed = ((int)($row['configured_plans'] ?? 0) >= 4) ? 1 : 0;
+
+        $upd = $this->conn->prepare("
+            UPDATE medical_insurances
+            SET policy_completed = ?
+            WHERE insurance_id = ?
+        ");
+        $upd->bind_param("ii", $is_completed, $insurance_id);
+        $upd->execute();
+        $upd->close();
     }
 }
