@@ -201,74 +201,71 @@ class Patient {
     }
 
     // ── Hospital-specific patient list ───────────────────────────────────────
-    public function getPatientsByHospital($hospital_id, $search = "") {
-        /*
-            FINAL FIX:
-            Before, this used:
-            patients -> insurance_hospitals -> hospital
+ public function getPatientsByHospital($hospital_id, $search = "") {
+    /*
+        Shared patient list mode:
+        All active patients appear in all hospital dashboards.
+        hospital_id is ignored here intentionally.
+    */
 
-            That made hospitals share patients if they shared insurance companies.
+    $sql = "
+        SELECT DISTINCT
+            p.patient_id,
+            p.full_name,
+            p.national_id,
+            p.phone,
+            p.gender,
+            p.address,
+            p.is_active,
+            p.created_at,
+            p.insurance_id,
+            p.hospital_id,
+            mi.name AS insurance_name
+        FROM patients p
+        LEFT JOIN medical_insurances mi
+            ON mi.insurance_id = p.insurance_id
+        WHERE p.is_active = 1
+    ";
 
-            Now, each hospital only sees:
-            patients.hospital_id = logged-in hospital_id
-        */
+    $types = "";
+    $params = [];
 
-        $sql = "
-            SELECT DISTINCT
-                p.patient_id,
-                p.full_name,
-                p.national_id,
-                p.phone,
-                p.gender,
-                p.address,
-                p.is_active,
-                p.created_at,
-                p.insurance_id,
-                p.hospital_id,
-                mi.name AS insurance_name
-            FROM patients p
-            LEFT JOIN medical_insurances mi
-                ON mi.insurance_id = p.insurance_id
-            WHERE p.is_active = 1
-              AND p.hospital_id = ?
+    if ($search !== "") {
+        $sql .= "
+            AND (
+                p.full_name LIKE CONCAT('%', ?, '%')
+                OR p.national_id LIKE CONCAT('%', ?, '%')
+                OR p.phone LIKE CONCAT('%', ?, '%')
+            )
         ";
 
-        $types = "i";
-        $params = [(int)$hospital_id];
-
-        if ($search !== "") {
-            $sql .= "
-                AND (
-                    p.full_name LIKE CONCAT('%', ?, '%')
-                    OR p.national_id LIKE CONCAT('%', ?, '%')
-                    OR p.phone LIKE CONCAT('%', ?, '%')
-                )
-            ";
-
-            $types .= "sss";
-            $params[] = $search;
-            $params[] = $search;
-            $params[] = $search;
-        }
-
-        $sql .= " ORDER BY p.patient_id DESC LIMIT 50";
-
-        $stmt = $this->conn->prepare($sql);
-        $stmt->bind_param($types, ...$params);
-        $stmt->execute();
-
-        $res = $stmt->get_result();
-
-        $out = [];
-
-        while ($row = $res->fetch_assoc()) {
-            $out[] = $row;
-        }
-
-        $stmt->close();
-
-        return $out;
+        $types .= "sss";
+        $params[] = $search;
+        $params[] = $search;
+        $params[] = $search;
     }
+
+    $sql .= " ORDER BY p.patient_id DESC LIMIT 50";
+
+    $stmt = $this->conn->prepare($sql);
+
+    if ($types !== "") {
+        $stmt->bind_param($types, ...$params);
+    }
+
+    $stmt->execute();
+    $res = $stmt->get_result();
+
+    $out = [];
+
+    while ($row = $res->fetch_assoc()) {
+        $out[] = $row;
+    }
+
+    $stmt->close();
+
+    return $out;
+}
 
     // ── Insurance-specific patient list ──────────────────────────────────────
     public function getPatientsByInsurance($insurance_id, $search = "") {
