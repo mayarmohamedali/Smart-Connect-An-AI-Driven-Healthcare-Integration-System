@@ -5,6 +5,7 @@ class Database {
     private mysqli $conn;
 
     public function __construct() {
+<<<<<<< Updated upstream
         $host = defined('DB_HOST') ? DB_HOST : '127.0.0.1';
         $user = defined('DB_USER') ? DB_USER : 'root';
         $pass = defined('DB_PASS') ? DB_PASS : '';
@@ -19,6 +20,16 @@ class Database {
             $pass,
             $name,
             $port
+=======
+        mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
+
+        $this->conn = new mysqli(
+            '127.0.0.1',
+            'root',
+            '',
+            'smart_connect',
+            3307
+>>>>>>> Stashed changes
         );
 
         $this->conn->set_charset("utf8mb4");

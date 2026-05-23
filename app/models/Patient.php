@@ -28,7 +28,11 @@ class Patient {
     public function getIsActive()      { return $this->is_active; }
     public function getInsuranceName() { return $this->insurance_name; }
 
+<<<<<<< Updated upstream
     // Setters
+=======
+    // ── Setters ───────────────────────────────────────────────────────────────
+>>>>>>> Stashed changes
     public function setFullName($name)   { $this->full_name = $name; }
     public function setNationalId($id)   { $this->national_id = $id; }
     public function setPhone($phone)     { $this->phone = $phone; }
@@ -81,8 +85,13 @@ class Patient {
 
     public function create($hospital_id = null, $insurance_id = null) {
         /*
+<<<<<<< Updated upstream
             hospital_id parameter is kept only for compatibility.
             It is not saved because patients table no longer has hospital_id.
+=======
+            hospital_id parameter is kept only for compatibility with old controller calls.
+            It is ignored because patients table no longer has hospital_id.
+>>>>>>> Stashed changes
         */
 
         $stmt = $this->conn->prepare("
@@ -119,7 +128,11 @@ class Patient {
 
     public function searchPatients($search_query, $hospital_id = null) {
         /*
+<<<<<<< Updated upstream
             Shared patient list mode.
+=======
+            Shared patient list mode:
+>>>>>>> Stashed changes
             hospital_id is ignored, so all active patients can be searched.
         */
 
@@ -180,10 +193,18 @@ class Patient {
         return $patients;
     }
 
+<<<<<<< Updated upstream
     public function getPatientsByHospital($hospital_id, $search = "") {
         /*
             Shared patient list mode:
             All active patients appear in every hospital dashboard.
+=======
+    // ── Hospital patient list ────────────────────────────────────────────────
+    public function getPatientsByHospital($hospital_id, $search = "") {
+        /*
+            Shared patient list mode:
+            All active patients appear in all hospital dashboards.
+>>>>>>> Stashed changes
             hospital_id is ignored intentionally.
         */
 
@@ -245,6 +266,10 @@ class Patient {
         return $out;
     }
 
+<<<<<<< Updated upstream
+=======
+    // ── Insurance-specific patient list ──────────────────────────────────────
+>>>>>>> Stashed changes
     public function getPatientsByInsurance($insurance_id, $search = "") {
         $sql = "
             SELECT 

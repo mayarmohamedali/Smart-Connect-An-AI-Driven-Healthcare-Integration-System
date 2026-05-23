@@ -1,10 +1,10 @@
 <?php
+
 class MedicalRecord {
     private $conn;
 
     private $record_id;
     private $patient_id;
-    private $hospital_id;
 
     private $age;
     private $checkin_date;
@@ -86,14 +86,14 @@ class MedicalRecord {
     // ── Getters ───────────────────────────────────────────────────────────────
     public function getRecordId()     { return $this->record_id; }
     public function getPatientId()    { return $this->patient_id; }
-    public function getHospitalId()   { return $this->hospital_id; }
+    public function getHospitalId()   { return null; } // kept for compatibility only
     public function getDiagnosis()    { return $this->diagnosis; }
     public function getCheckinDate()  { return $this->checkin_date; }
     public function getCheckoutDate() { return $this->checkout_date; }
 
     // ── Setters ───────────────────────────────────────────────────────────────
     public function setPatientId($id)       { $this->patient_id = $id; }
-    public function setHospitalId($id)      { $this->hospital_id = $id; }
+    public function setHospitalId($id)      { /* ignored because medical_records has no hospital_id column */ }
     public function setAge($age)            { $this->age = $age; }
     public function setCheckinDate($date)   { $this->checkin_date = $date; }
     public function setCheckoutDate($date)  { $this->checkout_date = $date; }
@@ -104,9 +104,6 @@ class MedicalRecord {
     public function setCholesterolLevel($v) { $this->cholesterol_level = $v; }
     public function setSystolicBP($v)       { $this->systolic_bp = $v; }
 
-    /**
-     * Set lab values and auto-calculate averages and deltas.
-     */
     public function setLabValues(
         $hb1, $tlc1, $plat1, $uria1, $creat1,
         $hb2, $tlc2, $plat2, $uria2, $creat2
@@ -219,7 +216,7 @@ class MedicalRecord {
     public function create() {
         $sql = "
             INSERT INTO medical_records (
-                patient_id, hospital_id, age, checkin_date, checkout_date,
+                patient_id, age, checkin_date, checkout_date,
                 cbc_hb1, cbc_tlc1, cbc_plat1, blood_uria1, blood_creatinine1,
                 cbc_hb2, cbc_tlc2, cbc_plat2, blood_uria2, blood_creatinine2,
                 avg_hb, avg_tlc, avg_platelets, avg_urea, avg_creatinine,
@@ -235,7 +232,7 @@ class MedicalRecord {
                 fever, cough, fatigue, chest_pain, shortness_of_breath, headache,
                 diagnosis, disease_category
             ) VALUES (
-                ?, ?, ?, ?, ?,
+                ?, ?, ?, ?,
                 ?, ?, ?, ?, ?,
                 ?, ?, ?, ?, ?,
                 ?, ?, ?, ?, ?,
@@ -261,7 +258,6 @@ class MedicalRecord {
 
         $params = [
             $this->patient_id,
-            $this->hospital_id,
             $this->age,
             $this->checkin_date,
             $this->checkout_date,
@@ -354,7 +350,6 @@ class MedicalRecord {
         $stmt->execute();
 
         $row = $stmt->get_result()->fetch_assoc();
-
         $stmt->close();
 
         if ($row) {
@@ -374,7 +369,6 @@ class MedicalRecord {
     public function update() {
         $sql = "
             UPDATE medical_records SET
-                hospital_id = ?,
                 age = ?,
                 checkin_date = ?,
                 checkout_date = ?,
@@ -442,7 +436,6 @@ class MedicalRecord {
         }
 
         $params = [
-            $this->hospital_id,
             $this->age,
             $this->checkin_date,
             $this->checkout_date,
@@ -522,7 +515,6 @@ class MedicalRecord {
         $stmt->bind_param($types, ...$params);
 
         $result = $stmt->execute();
-
         $stmt->close();
 
         return $result;
@@ -534,7 +526,6 @@ class MedicalRecord {
             SELECT 
                 record_id,
                 patient_id,
-                hospital_id,
                 created_at,
                 checkin_date,
                 checkout_date,
@@ -554,7 +545,6 @@ class MedicalRecord {
         $stmt->execute();
 
         $result = $stmt->get_result();
-
         $records = [];
 
         while ($row = $result->fetch_assoc()) {

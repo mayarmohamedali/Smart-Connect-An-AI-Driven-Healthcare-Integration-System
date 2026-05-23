@@ -4,10 +4,18 @@ class HospitalController {
 
     // ── GET /hospital/dashboard ──────────────────────────────────────────────
     public function dashboard(): void {
+<<<<<<< Updated upstream
         $db   = new Database();
         $conn = $db->getConnection();
         $auth = new Auth($conn);
         $auth->checkStaffAuth('HOSPITAL_STAFF');
+=======
+        Guard::staff('HOSPITAL_STAFF');
+
+        $db   = new Database();
+        $conn = $db->getConnection();
+        $auth = new Auth($conn);
+>>>>>>> Stashed changes
 
         $hospital_id = (int)($auth->getSessionData('hospital_id') ?? 0);
         if ($hospital_id <= 0) {
@@ -15,18 +23,18 @@ class HospitalController {
             exit;
         }
 
-        $hospitalObj   = new Hospital($conn);
+        $hospitalObj = new Hospital($conn);
         $hospitalObj->loadById($hospital_id);
         $hospital_name = $hospitalObj->getName() ?: 'Hospital';
 
         $kpi_patients = $hospitalObj->getKPIPatients();
 
-        // Hospital-specific medical records only
+        // No hospital_id column in medical_records now, so count all records.
         $kpi_medical_records = $this->fetchInt(
             $conn,
-            "SELECT COUNT(*) FROM medical_records WHERE hospital_id = ?",
-            "i",
-            [$hospital_id]
+            "SELECT COUNT(*) FROM medical_records",
+            "",
+            []
         );
 
         $kpi_insured_patients = $this->fetchInt(
@@ -46,27 +54,21 @@ class HospitalController {
             $conn,
             "SELECT COUNT(*)
              FROM medical_records
-             WHERE hospital_id = ?
-               AND created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)",
-            "i",
-            [$hospital_id]
+             WHERE created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)",
+            "",
+            []
         );
 
         $patientObj = new Patient($conn);
-        $q          = trim($_GET['q'] ?? '');
-        $patients   = $patientObj->getPatientsByHospital($hospital_id, $q) ?? [];
+        $q = trim($_GET['q'] ?? '');
+        $patients = $patientObj->getPatientsByHospital($hospital_id, $q) ?? [];
 
         $success_msg = '';
-        $error_msg   = '';
+        $error_msg = '';
 
-        // ── ML EPIDEMIC FORECAST ─────────────────────────────────────────────
         require_once ROOT . '/app/models/EpidemicForecast.php';
 
-        /*
-            IMPORTANT FIX:
-            We now read records using mr.hospital_id = ?
-            This makes each hospital dashboard use its own records only.
-        */
+        // No hospital_id column, so this uses all medical records.
         $stmt = $conn->prepare("
             SELECT
                 COALESCE(mr.age, 35)                             AS Age,
@@ -93,12 +95,10 @@ class HospitalController {
             FROM medical_records mr
             INNER JOIN patients p 
                 ON p.patient_id = mr.patient_id
-            WHERE mr.hospital_id = ?
-              AND mr.created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+            WHERE mr.created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
             LIMIT 500
         ");
 
-        $stmt->bind_param('i', $hospital_id);
         $stmt->execute();
         $raw_records = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
         $stmt->close();
@@ -139,20 +139,11 @@ class HospitalController {
 
         $records_this_month = count($patients_for_forecast);
 
-        $ef        = new EpidemicForecast('http://127.0.0.1:5000');
+        $ef = new EpidemicForecast('http://127.0.0.1:5000');
         $api_alive = $ef->isApiAlive();
 
-        /*
-            Dynamic full-year schedule:
-            one dominant disease per month, filtered by this hospital_id.
-        */
-        $calendar = $this->buildHospitalDiseaseCalendar($conn, $hospital_id);
+        $calendar = $this->buildHospitalDiseaseCalendar($conn);
 
-        /*
-            To avoid the ugly 3-disease distribution, we build a single-disease
-            upcoming-month forecast from the hospital-specific calendar.
-            The view will show one disease only.
-        */
         $live_forecast = [];
 
         if ($api_alive) {
@@ -165,18 +156,20 @@ class HospitalController {
 
     // ── GET /hospital/viewRecords ────────────────────────────────────────────
     public function viewRecords(): void {
+<<<<<<< Updated upstream
         $db   = new Database();
         $conn = $db->getConnection();
         $auth = new Auth($conn);
         $auth->checkStaffAuth('HOSPITAL_STAFF');
+=======
+        Guard::staff('HOSPITAL_STAFF');
+>>>>>>> Stashed changes
 
-        $hospital_id = (int)($auth->getSessionData('hospital_id') ?? 0);
-        $patient_id  = (int)($_GET['patient_id'] ?? 0);
+        $db   = new Database();
+        $conn = $db->getConnection();
+        $auth = new Auth($conn);
 
-        if ($hospital_id <= 0) {
-            header('Location: ' . BASE_URL . '/auth/login');
-            exit;
-        }
+        $patient_id = (int)($_GET['patient_id'] ?? 0);
 
         if ($patient_id <= 0) {
             header('Location: ' . BASE_URL . '/hospital/dashboard');
@@ -188,18 +181,11 @@ class HospitalController {
             FROM patients p
             LEFT JOIN medical_insurances mi 
                 ON mi.insurance_id = p.insurance_id
-            LEFT JOIN insurance_hospitals ih
-                ON ih.insurance_id = p.insurance_id
-               AND ih.hospital_id = ?
             WHERE p.patient_id = ?
-              AND (
-                    ih.hospital_id IS NOT NULL
-                 OR p.insurance_id IS NULL
-              )
             LIMIT 1
         ");
 
-        $stmt->bind_param('ii', $hospital_id, $patient_id);
+        $stmt->bind_param('i', $patient_id);
         $stmt->execute();
         $patient = $stmt->get_result()->fetch_assoc();
         $stmt->close();
@@ -217,9 +203,8 @@ class HospitalController {
                     DELETE FROM medical_records 
                     WHERE record_id = ? 
                       AND patient_id = ?
-                      AND hospital_id = ?
                 ");
-                $del->bind_param('iii', $rid, $patient_id, $hospital_id);
+                $del->bind_param('ii', $rid, $patient_id);
                 $del->execute();
                 $del->close();
             }
@@ -234,11 +219,10 @@ class HospitalController {
             SELECT * 
             FROM medical_records 
             WHERE patient_id = ?
-              AND hospital_id = ?
             ORDER BY record_id DESC
         ");
 
-        $stmt->bind_param('ii', $patient_id, $hospital_id);
+        $stmt->bind_param('i', $patient_id);
         $stmt->execute();
         $res = $stmt->get_result();
 
@@ -259,10 +243,9 @@ class HospitalController {
                     FROM medical_records 
                     WHERE record_id = ?
                       AND patient_id = ?
-                      AND hospital_id = ?
                     LIMIT 1
                 ");
-                $stmt->bind_param('iii', $rid, $patient_id, $hospital_id);
+                $stmt->bind_param('ii', $rid, $patient_id);
                 $stmt->execute();
                 $selected_record = $stmt->get_result()->fetch_assoc();
                 $stmt->close();
@@ -273,19 +256,8 @@ class HospitalController {
         $db->close();
     }
 
-    // ── HOSPITAL-SPECIFIC DISEASE CALENDAR ───────────────────────────────────
-    private function buildHospitalDiseaseCalendar(mysqli $conn, int $hospital_id): array {
-        /*
-            Fully hospital-specific:
-            Only records created by the logged-in hospital are used.
-
-            Output:
-            12 months
-            one dominant disease per month
-            one severity
-            one recommendation
-        */
-
+    // ── DISEASE CALENDAR WITHOUT hospital_id COLUMN ──────────────────────────
+    private function buildHospitalDiseaseCalendar(mysqli $conn): array {
         $stmt = $conn->prepare("
             SELECT
                 COALESCE(
@@ -304,8 +276,7 @@ class HospitalController {
 
             FROM medical_records mr
 
-            WHERE mr.hospital_id = ?
-              AND COALESCE(
+            WHERE COALESCE(
                     NULLIF(mr.month, ''),
                     MONTH(COALESCE(mr.checkin_date, mr.created_at, CURDATE()))
                   ) BETWEEN 1 AND 12
@@ -314,7 +285,6 @@ class HospitalController {
             ORDER BY month_num ASC, case_count DESC, avg_risk_score DESC
         ");
 
-        $stmt->bind_param('i', $hospital_id);
         $stmt->execute();
         $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
         $stmt->close();
@@ -354,10 +324,10 @@ class HospitalController {
             }
 
             $caseCount = (int)($row['case_count'] ?? 0);
-            $avgRisk   = (float)($row['avg_risk_score'] ?? 0);
-            $severity  = $this->getDiseaseSeverity($disease, $avgRisk);
+            $avgRisk = (float)($row['avg_risk_score'] ?? 0);
+            $severity = $this->getDiseaseSeverity($disease, $avgRisk);
 
-            $recommendations   = $this->getDiseaseRecommendations($disease, $severity);
+            $recommendations = $this->getDiseaseRecommendations($disease, $severity);
             $topRecommendation = $recommendations[0] ?? 'No hospital records available for this month.';
 
             $dominantByMonth[$month] = [
@@ -369,7 +339,7 @@ class HospitalController {
                 'recommendation'     => $topRecommendation,
                 'recommendations'    => [$topRecommendation],
                 'case_count'         => $caseCount,
-                'source'             => 'hospital_database'
+                'source'             => 'database'
             ];
         }
 
@@ -388,7 +358,7 @@ class HospitalController {
                     'recommendation'     => 'No hospital records available for this month.',
                     'recommendations'    => ['No hospital records available for this month.'],
                     'case_count'         => 0,
-                    'source'             => 'hospital_database'
+                    'source'             => 'database'
                 ];
             }
         }
@@ -397,130 +367,82 @@ class HospitalController {
     }
 
     private function buildNextMonthSingleForecast(array $calendar, int $records_this_month): array {
-    /*
-        Upcoming-month forecast logic.
+        $current_month_n = (int)date('n');
+        $next_month_n = ($current_month_n % 12) + 1;
+        $next_month_name = date('M', mktime(0, 0, 0, $next_month_n, 1));
 
-        The full-year table shows actual hospital records by month.
-        But the top card is a forecast for NEXT month.
+        $validRows = [];
 
-        So if next month has no records, we do NOT show "No records".
-        Instead, we use:
-        1. Current month dominant disease, if available.
-        2. Latest available month with records.
-        3. Highest-case disease if no recent month exists.
+        foreach ($calendar as $row) {
+            $cases = (int)($row['case_count'] ?? 0);
 
-        This keeps the forecast dynamic and hospital-specific.
-    */
+            $diseaseRaw = strtolower(trim((string)(
+                $row['dominant_disease'] 
+                ?? $row['dominant_display'] 
+                ?? ''
+            )));
 
-    $current_month_n = (int)date('n');
-    $next_month_n    = ($current_month_n % 12) + 1;
-    $next_month_name = date('M', mktime(0, 0, 0, $next_month_n, 1));
+            $isNoRecords =
+                $cases <= 0 ||
+                $diseaseRaw === '' ||
+                strpos($diseaseRaw, 'no records') !== false;
 
-    $validRows = [];
-
-    foreach ($calendar as $row) {
-        $cases = (int)($row['case_count'] ?? 0);
-
-        $diseaseRaw = strtolower(trim((string)(
-            $row['dominant_disease'] 
-            ?? $row['dominant_display'] 
-            ?? ''
-        )));
-
-        $isNoRecords =
-            $cases <= 0 ||
-            $diseaseRaw === '' ||
-            strpos($diseaseRaw, 'no records') !== false;
-
-        if (!$isNoRecords) {
-            $validRows[] = $row;
+            if (!$isNoRecords) {
+                $validRows[] = $row;
+            }
         }
-    }
 
-    /*
-        1. Prefer current month.
-        Example: if we are in May, use May records to forecast June.
-    */
-    $entry = null;
-
-    foreach ($validRows as $row) {
-        if ((int)($row['month'] ?? 0) === $current_month_n) {
-            $entry = $row;
-            break;
-        }
-    }
-
-    /*
-        2. If current month has no records, use the latest previous month.
-    */
-    if (!$entry) {
-        $previousRows = [];
+        $entry = null;
 
         foreach ($validRows as $row) {
-            $month = (int)($row['month'] ?? 0);
-
-            if ($month > 0 && $month < $next_month_n) {
-                $previousRows[] = $row;
+            if ((int)($row['month'] ?? 0) === $current_month_n) {
+                $entry = $row;
+                break;
             }
         }
 
-        usort($previousRows, function ($a, $b) {
-            $monthCompare = ((int)($b['month'] ?? 0)) <=> ((int)($a['month'] ?? 0));
+        if (!$entry && !empty($validRows)) {
+            usort($validRows, function ($a, $b) {
+                $monthCompare = ((int)($b['month'] ?? 0)) <=> ((int)($a['month'] ?? 0));
 
-            if ($monthCompare !== 0) {
-                return $monthCompare;
-            }
+                if ($monthCompare !== 0) {
+                    return $monthCompare;
+                }
 
-            return ((int)($b['case_count'] ?? 0)) <=> ((int)($a['case_count'] ?? 0));
-        });
+                return ((int)($b['case_count'] ?? 0)) <=> ((int)($a['case_count'] ?? 0));
+            });
 
-        if (!empty($previousRows)) {
-            $entry = $previousRows[0];
+            $entry = $validRows[0];
         }
-    }
 
-    /*
-        3. If there is no previous/current month, use the strongest available disease.
-    */
-    if (!$entry && !empty($validRows)) {
-        usort($validRows, function ($a, $b) {
-            return ((int)($b['case_count'] ?? 0)) <=> ((int)($a['case_count'] ?? 0));
-        });
+        if (!$entry) {
+            return [
+                'status'             => 'ok',
+                'source'             => 'database',
+                'predicted_month'    => $next_month_n,
+                'month_name'         => $next_month_name,
+                'dominant_disease'   => 'No Records',
+                'dominant_display'   => 'No records this month',
+                'severity'           => 'low',
+                'recommendations'    => ['No hospital records available for this month.'],
+                'total_patients'     => 0,
+                'records_this_month' => $records_this_month
+            ];
+        }
 
-        $entry = $validRows[0];
-    }
-
-    /*
-        4. If the hospital has no records at all.
-    */
-    if (!$entry) {
         return [
             'status'             => 'ok',
-            'source'             => 'hospital_database',
+            'source'             => 'database_forecast_from_recent_records',
             'predicted_month'    => $next_month_n,
             'month_name'         => $next_month_name,
-            'dominant_disease'   => 'No Records',
-            'dominant_display'   => 'No records this month',
-            'severity'           => 'low',
-            'recommendations'    => ['No hospital records available for this month.'],
-            'total_patients'     => 0,
+            'dominant_disease'   => $entry['dominant_disease'] ?? 'Unknown',
+            'dominant_display'   => $entry['dominant_display'] ?? str_replace('_', ' ', ($entry['dominant_disease'] ?? 'Unknown')),
+            'severity'           => $entry['severity'] ?? 'medium',
+            'recommendations'    => $entry['recommendations'] ?? [$entry['recommendation'] ?? 'Maintain hospital readiness based on recent patient trends.'],
+            'total_patients'     => (int)($entry['case_count'] ?? 0),
             'records_this_month' => $records_this_month
         ];
     }
-
-    return [
-        'status'             => 'ok',
-        'source'             => 'hospital_database_forecast_from_recent_records',
-        'predicted_month'    => $next_month_n,
-        'month_name'         => $next_month_name,
-        'dominant_disease'   => $entry['dominant_disease'] ?? 'Unknown',
-        'dominant_display'   => $entry['dominant_display'] ?? str_replace('_', ' ', ($entry['dominant_disease'] ?? 'Unknown')),
-        'severity'           => $entry['severity'] ?? 'medium',
-        'recommendations'    => $entry['recommendations'] ?? [$entry['recommendation'] ?? 'Maintain hospital readiness based on recent patient trends.'],
-        'total_patients'     => (int)($entry['case_count'] ?? 0),
-        'records_this_month' => $records_this_month
-    ];
-}
 
     private function getDiseaseSeverity(string $disease, float $riskScore = 0): string {
         $normalized = strtolower(str_replace(['_', '-'], ' ', trim($disease)));
@@ -590,15 +512,11 @@ class HospitalController {
         $normalized = strtolower(str_replace(['_', '-'], ' ', trim($disease)));
 
         if ($normalized === 'no records' || str_contains($normalized, 'no records')) {
-            return [
-                'No hospital records available for this month.'
-            ];
+            return ['No hospital records available for this month.'];
         }
 
         if (strpos($normalized, 'stroke') !== false) {
-            return [
-                'Ensure emergency stroke pathway is fully operational.'
-            ];
+            return ['Ensure emergency stroke pathway is fully operational.'];
         }
 
         if (
@@ -606,76 +524,58 @@ class HospitalController {
             strpos($normalized, 'coronary') !== false ||
             strpos($normalized, 'cardio') !== false
         ) {
-            return [
-                'Ensure cardiac unit readiness for chest pain emergencies.'
-            ];
+            return ['Ensure cardiac unit readiness for chest pain emergencies.'];
         }
 
         if (
             strpos($normalized, 'kidney') !== false ||
             strpos($normalized, 'renal') !== false
         ) {
-            return [
-                'Ensure nephrology monitoring and renal support readiness.'
-            ];
+            return ['Ensure nephrology monitoring and renal support readiness.'];
         }
 
         if (strpos($normalized, 'diabetes') !== false) {
-            return [
-                'Ensure readiness for blood sugar emergencies and monitoring.'
-            ];
+            return ['Ensure readiness for blood sugar emergencies and monitoring.'];
         }
 
         if (strpos($normalized, 'hypertension') !== false) {
-            return [
-                'Ensure blood pressure monitoring is widely available.'
-            ];
+            return ['Ensure blood pressure monitoring is widely available.'];
         }
 
         if (strpos($normalized, 'asthma') !== false) {
-            return [
-                'Ensure respiratory unit is ready for increased breathing difficulty cases.'
-            ];
+            return ['Ensure respiratory unit is ready for increased breathing difficulty cases.'];
         }
 
         if (strpos($normalized, 'pneumonia') !== false) {
-            return [
-                'Ensure respiratory isolation and infection control readiness.'
-            ];
+            return ['Ensure respiratory isolation and infection control readiness.'];
         }
 
         if (strpos($normalized, 'cancer') !== false) {
-            return [
-                'Ensure oncology unit and inpatient beds are ready for increased admissions.'
-            ];
+            return ['Ensure oncology unit and inpatient beds are ready for increased admissions.'];
         }
 
         if ($severity === 'critical') {
-            return [
-                'Prepare emergency resources and specialist teams for high-acuity cases.'
-            ];
+            return ['Prepare emergency resources and specialist teams for high-acuity cases.'];
         }
 
         if ($severity === 'high') {
-            return [
-                'Increase department readiness and monitor high-risk patients closely.'
-            ];
+            return ['Increase department readiness and monitor high-risk patients closely.'];
         }
 
         if ($severity === 'medium') {
-            return [
-                'Maintain monitoring capacity and prepare for moderate case volume.'
-            ];
+            return ['Maintain monitoring capacity and prepare for moderate case volume.'];
         }
 
-        return [
-            'Continue routine monitoring and preventive care readiness.'
-        ];
+        return ['Continue routine monitoring and preventive care readiness.'];
     }
 
-    private function fetchInt(mysqli $conn, string $sql, string $types, array $params): int {
+    private function fetchInt(mysqli $conn, string $sql, string $types = "", array $params = []): int {
         $stmt = $conn->prepare($sql);
-        $stmt->bind_param($types, ...$params);
+
+        if ($types !== "" && !empty($params)) {
+            $stmt->bind_param($types, ...$params);
+        }
+
         $stmt->execute();
         $res = $stmt->get_result()->fetch_row();
         $stmt->close();
@@ -685,18 +585,20 @@ class HospitalController {
 
     // ── GET|POST /hospital/addRecord ─────────────────────────────────────────
     public function addRecord(): void {
+<<<<<<< Updated upstream
         $db   = new Database();
         $conn = $db->getConnection();
         $auth = new Auth($conn);
         $auth->checkStaffAuth('HOSPITAL_STAFF');
+=======
+        Guard::staff('HOSPITAL_STAFF');
+>>>>>>> Stashed changes
 
-        $hospital_id = (int)($auth->getSessionData('hospital_id') ?? 0);
-        $patient_id  = (int)($_GET['patient_id'] ?? 0);
+        $db   = new Database();
+        $conn = $db->getConnection();
+        $auth = new Auth($conn);
 
-        if ($hospital_id <= 0) {
-            header('Location: ' . BASE_URL . '/auth/login');
-            exit;
-        }
+        $patient_id = (int)($_GET['patient_id'] ?? 0);
 
         if ($patient_id <= 0) {
             header('Location: ' . BASE_URL . '/hospital/dashboard');
@@ -709,18 +611,11 @@ class HospitalController {
             FROM patients p
             LEFT JOIN medical_insurances mi 
                 ON mi.insurance_id = p.insurance_id
-            LEFT JOIN insurance_hospitals ih
-                ON ih.insurance_id = p.insurance_id
-               AND ih.hospital_id = ?
             WHERE p.patient_id = ?
-              AND (
-                    ih.hospital_id IS NOT NULL
-                 OR p.insurance_id IS NULL
-              )
             LIMIT 1
         ");
 
-        $stmt->bind_param('ii', $hospital_id, $patient_id);
+        $stmt->bind_param('i', $patient_id);
         $stmt->execute();
         $patient = $stmt->get_result()->fetch_assoc();
         $stmt->close();
@@ -731,16 +626,15 @@ class HospitalController {
         }
 
         $insuranceName = $patient['insurance_name'] ?? '';
-        $insuranceId   = (int)($patient['insurance_id'] ?? 0);
+        $insuranceId = (int)($patient['insurance_id'] ?? 0);
 
         $success = '';
-        $error   = '';
+        $error = '';
 
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $record = new MedicalRecord($conn);
 
             $record->setPatientId($patient_id);
-            $record->setHospitalId($hospital_id);
 
             $record->setAge((int)Validator::nullIfEmpty($_POST['age'] ?? null));
             $record->setCheckinDate(Validator::nullIfEmpty($_POST['checkin_date'] ?? null));
@@ -824,19 +718,20 @@ class HospitalController {
 
     // ── GET|POST /hospital/editRecord ────────────────────────────────────────
     public function editRecord(): void {
+<<<<<<< Updated upstream
         $db   = new Database();
         $conn = $db->getConnection();
         $auth = new Auth($conn);
         $auth->checkStaffAuth('HOSPITAL_STAFF');
+=======
+        Guard::staff('HOSPITAL_STAFF');
+>>>>>>> Stashed changes
 
-        $hospital_id = (int)($auth->getSessionData('hospital_id') ?? 0);
-        $patient_id  = (int)($_GET['patient_id'] ?? 0);
-        $record_id   = (int)($_GET['record_id'] ?? 0);
+        $db   = new Database();
+        $conn = $db->getConnection();
 
-        if ($hospital_id <= 0) {
-            header('Location: ' . BASE_URL . '/auth/login');
-            exit;
-        }
+        $patient_id = (int)($_GET['patient_id'] ?? 0);
+        $record_id  = (int)($_GET['record_id'] ?? 0);
 
         if ($patient_id <= 0 || $record_id <= 0) {
             header('Location: ' . BASE_URL . '/hospital/dashboard');
@@ -844,20 +739,13 @@ class HospitalController {
         }
 
         $stmt = $conn->prepare("
-            SELECT p.patient_id, p.full_name, p.national_id
-            FROM patients p
-            LEFT JOIN insurance_hospitals ih
-                ON ih.insurance_id = p.insurance_id
-               AND ih.hospital_id = ?
-            WHERE p.patient_id = ?
-              AND (
-                    ih.hospital_id IS NOT NULL
-                 OR p.insurance_id IS NULL
-              )
+            SELECT patient_id, full_name, national_id
+            FROM patients
+            WHERE patient_id = ?
             LIMIT 1
         ");
 
-        $stmt->bind_param('ii', $hospital_id, $patient_id);
+        $stmt->bind_param('i', $patient_id);
         $stmt->execute();
         $patient = $stmt->get_result()->fetch_assoc();
         $stmt->close();
@@ -872,10 +760,9 @@ class HospitalController {
             FROM medical_records 
             WHERE record_id = ?
               AND patient_id = ?
-              AND hospital_id = ?
             LIMIT 1
         ");
-        $stmt->bind_param('iii', $record_id, $patient_id, $hospital_id);
+        $stmt->bind_param('ii', $record_id, $patient_id);
         $stmt->execute();
         $record = $stmt->get_result()->fetch_assoc();
         $stmt->close();
@@ -886,14 +773,14 @@ class HospitalController {
         }
 
         $activityOptions = ['Low', 'Moderate', 'High'];
-        $dietOptions     = ['Poor', 'Average', 'Good'];
-        $daysOfWeek      = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+        $dietOptions = ['Poor', 'Average', 'Good'];
+        $daysOfWeek = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
-        $error   = '';
+        $error = '';
         $success = isset($_GET['success']);
 
         if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'update_record') {
-            $this->performUpdate($conn, $record_id, $patient_id, $hospital_id, $_POST);
+            $this->performUpdate($conn, $record_id, $patient_id, $_POST);
 
             header(
                 'Location: ' . BASE_URL .
@@ -908,7 +795,7 @@ class HospitalController {
         $db->close();
     }
 
-    private function performUpdate(mysqli $conn, int $record_id, int $patient_id, int $hospital_id, array $p): void {
+    private function performUpdate(mysqli $conn, int $record_id, int $patient_id, array $p): void {
         $ni2 = function ($v) {
             $v = trim((string)($v ?? ''));
             return $v === '' ? null : $v;
@@ -987,7 +874,6 @@ class HospitalController {
         $disease   = $ni2($p['disease_category'] ?? null);
 
         $sql = "UPDATE medical_records SET
-            hospital_id = ?,
             age = ?,
             checkin_date = ?,
             checkout_date = ?,
@@ -1045,16 +931,9 @@ class HospitalController {
             diagnosis = ?,
             disease_category = ?
             WHERE record_id = ?
-              AND patient_id = ?
-              AND hospital_id = ?";
+              AND patient_id = ?";
 
-        $stmt = $conn->prepare($sql);
-
-        $types = str_repeat('s', 57) . 'iii';
-
-        $stmt->bind_param(
-            $types,
-            $hospital_id,
+        $params = [
             $age,
             $checkin_date,
             $checkout_date,
@@ -1112,10 +991,12 @@ class HospitalController {
             $diagnosis,
             $disease,
             $record_id,
-            $patient_id,
-            $hospital_id
-        );
+            $patient_id
+        ];
 
+        $stmt = $conn->prepare($sql);
+        $types = str_repeat('s', count($params));
+        $stmt->bind_param($types, ...$params);
         $stmt->execute();
         $stmt->close();
     }
