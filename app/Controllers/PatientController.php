@@ -103,6 +103,8 @@ $auth = new Auth($conn);
         $activeAlerts     = is_array($aiPrediction['active_alerts']     ?? null) ? $aiPrediction['active_alerts']     : [];
         $shortMeasures    = is_array($aiPrediction['short_term_measures'] ?? null) ? $aiPrediction['short_term_measures'] : [];
         $longMeasures     = is_array($aiPrediction['long_term_measures']  ?? null) ? $aiPrediction['long_term_measures']  : [];
+        $confidenceScore  = (int)($aiPrediction['confidence_score'] ?? 0);
+        $confidenceLabel  = $aiPrediction['confidence_label']       ?? 'N/A';
         // ────────────────────────────────────────────────────────────────────
 
         require_once ROOT . '/app/views/patient/dashboard.php';
