@@ -222,6 +222,28 @@ def build_prediction(record):
         long_term_measures  = ["Routine annual checkups", "Balanced diet",
                                "Regular exercise"]
 
+    # ── Confidence score (rule-based: count how many thresholds fired) ──
+    # Each clinical threshold that matched adds certainty.
+    # Healthy = low confidence by definition (no trigger fired).
+    triggered = 0
+    total_checks = 7   # total number of clinical checks
+
+    if creat2 >= 2.0 or creat1 >= 2.0 : triggered += 2   # strong double signal
+    if chest_pain == 1                 : triggered += 1
+    if shortness  >= 1                 : triggered += 1
+    if glucose    >= 126               : triggered += 1
+    if glucose    >= 200               : triggered += 1   # extra certainty for very high
+    if systolic_bp >= 140              : triggered += 1
+    if systolic_bp >= 180              : triggered += 1   # extra certainty for crisis
+    if headache   == 1                 : triggered += 1
+    if fatigue    >= 1 or fever >= 1 or cough >= 1 : triggered += 1
+
+    # Clamp and scale: 1 trigger = 60% base, each extra adds ~10%, max 97%
+    if predicted_disease == "Healthy":
+        confidence_score = 72   # no contradictory signals → reasonably confident
+    else:
+        confidence_score = min(97, 55 + triggered * 10)
+
     return {
         "ok"                  : True,
         "patient_id"          : record["patient_id"],
@@ -231,6 +253,13 @@ def build_prediction(record):
         "active_alerts"       : active_alerts,
         "short_term_measures" : short_term_measures,
         "long_term_measures"  : long_term_measures,
+        "confidence_score"    : confidence_score,          # 0–100 int
+        "confidence_label"    : (
+            "Very High" if confidence_score >= 90 else
+            "High"      if confidence_score >= 75 else
+            "Moderate"  if confidence_score >= 55 else
+            "Low"
+        ),
     }
 
 
@@ -350,6 +379,29 @@ def predict_next_month_dominant_disease(patient_list, _artifacts, min_patients=5
         counts    = pd.Series(preds_dis).value_counts()
         pct       = (counts / len(preds_dis) * 100).round(1)
         dominant  = str(counts.index[0])
+
+        # ── Model confidence via predict_proba (if available) ──
+        confidence_score = None
+        confidence_label = "N/A"
+        try:
+            if hasattr(model, "predict_proba"):
+                proba_matrix  = model.predict_proba(X_batch)          # (n_patients, n_classes)
+                mean_proba    = proba_matrix.mean(axis=0)              # average across patients
+                dom_idx       = list(le_tgt.classes_).index(dominant)
+                confidence_score = round(float(mean_proba[dom_idx]) * 100, 1)
+            else:
+                # Fallback: dominant disease share of total predictions
+                confidence_score = round(float(pct.iloc[0]), 1)
+        except Exception:
+            confidence_score = round(float(pct.iloc[0]), 1)
+
+        confidence_label = (
+            "Very High" if confidence_score >= 80 else
+            "High"      if confidence_score >= 60 else
+            "Moderate"  if confidence_score >= 40 else
+            "Low"
+        )
+
         return {
             "status"           : "ok",
             "message"          : f"Forecast for {next_month_name} — {len(patient_list)} patients.",
@@ -361,6 +413,8 @@ def predict_next_month_dominant_disease(patient_list, _artifacts, min_patients=5
             "severity"         : DISEASE_SEVERITY.get(dominant, "medium"),
             "distribution"     : {str(k): int(v)   for k, v in counts.items()},
             "distribution_pct" : {str(k): float(v) for k, v in pct.items()},
+            "confidence_score" : confidence_score,   # 0–100 float
+            "confidence_label" : confidence_label,
             "source"           : "live_model",
         }
     except Exception as ex:
@@ -573,6 +627,17 @@ def get_company_forecast_from_artifacts(company_name, arts):
     # sanitize NaN / Inf just in case
     history_list = sanitize_for_json(history_list)
 
+    uncertainty_pp = round(float(r.get("Uncertainty_pp", abs(upper - lower) / 2)), 2)
+    # ── Confidence: inverse of uncertainty, capped at 97 ──
+    # Low uncertainty → high confidence. Each ±1 pp uncertainty costs ~8 points.
+    ins_confidence_score = round(max(30, min(97, 97 - uncertainty_pp * 8)), 1)
+    ins_confidence_label = (
+        "Very High" if ins_confidence_score >= 90 else
+        "High"      if ins_confidence_score >= 75 else
+        "Moderate"  if ins_confidence_score >= 55 else
+        "Low"
+    )
+
     return {
         "status"             : "ok",
         "company"            : company_name,
@@ -580,7 +645,7 @@ def get_company_forecast_from_artifacts(company_name, arts):
         "blended_change_pct" : round(blended,   2),
         "lower_pct"          : round(lower,     2),
         "upper_pct"          : round(upper,     2),
-        "uncertainty_pp"     : round(float(r.get("Uncertainty_pp", abs(upper - lower) / 2)), 2),
+        "uncertainty_pp"     : uncertainty_pp,
         # Expose ML and Trend components at top level for the PHP three-box display
         "ML_Change_Pct"      : round(ml_pct,    2),
         "Trend_Change_Pct"   : round(trend_pct, 2),
@@ -589,6 +654,8 @@ def get_company_forecast_from_artifacts(company_name, arts):
         # FIXED: list of {year, yoy_pct} — percentage history, not monetary sums
         "history"            : history_list,
         "source"             : "trained_model",
+        "confidence_score"   : ins_confidence_score,   # 0–100 float
+        "confidence_label"   : ins_confidence_label,
     }
 
 
@@ -670,6 +737,8 @@ def get_live_forecast_from_db(company_name, db_patients, arts):
             })
         history_list = sanitize_for_json(history_list)
 
+        live_uncertainty = round(float(r["Uncertainty_pp"]), 2)
+        live_confidence  = round(max(30, min(97, 97 - live_uncertainty * 8)), 1)
         return {
             "status"             : "ok",
             "company"            : company_name,
@@ -677,7 +746,7 @@ def get_live_forecast_from_db(company_name, db_patients, arts):
             "blended_change_pct" : round(blended,   2),
             "lower_pct"          : round(float(r["Lower_Pct"]),      2),
             "upper_pct"          : round(float(r["Upper_Pct"]),      2),
-            "uncertainty_pp"     : round(float(r["Uncertainty_pp"]), 2),
+            "uncertainty_pp"     : live_uncertainty,
             "ML_Change_Pct"      : round(ml_pct,    2),
             "Trend_Change_Pct"   : round(trend_pct, 2),
             "action"             : INSURANCE_ACTIONS.get(company_name,
@@ -686,6 +755,13 @@ def get_live_forecast_from_db(company_name, db_patients, arts):
             "source"             : "live_db",
             "history"            : history_list,
             "message"            : f"Live forecast from {len(db_patients)} DB records.",
+            "confidence_score"   : live_confidence,
+            "confidence_label"   : (
+                "Very High" if live_confidence >= 90 else
+                "High"      if live_confidence >= 75 else
+                "Moderate"  if live_confidence >= 55 else
+                "Low"
+            ),
         }
 
     except Exception as ex:

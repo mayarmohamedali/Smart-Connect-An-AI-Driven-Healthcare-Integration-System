@@ -59,10 +59,10 @@ class PatientController {
 
     // ── GET /patient/dashboard ───────────────────────────────────────────────
     public function dashboard(): void {
-        $db   = new Database();
-        $conn = $db->getConnection();
-        $auth = new Auth($conn);
-        $auth->checkPatientAuth();
+       Guard::patient();
+$db   = new Database();
+$conn = $db->getConnection();
+$auth = new Auth($conn);
 
         $patient_id = (int)$auth->getSessionData('patient_id');
         if ($patient_id <= 0) { header('Location: ' . BASE_URL . '/auth/login'); exit; }
@@ -103,6 +103,8 @@ class PatientController {
         $activeAlerts     = is_array($aiPrediction['active_alerts']     ?? null) ? $aiPrediction['active_alerts']     : [];
         $shortMeasures    = is_array($aiPrediction['short_term_measures'] ?? null) ? $aiPrediction['short_term_measures'] : [];
         $longMeasures     = is_array($aiPrediction['long_term_measures']  ?? null) ? $aiPrediction['long_term_measures']  : [];
+        $confidenceScore  = (int)($aiPrediction['confidence_score'] ?? 0);
+        $confidenceLabel  = $aiPrediction['confidence_label']       ?? 'N/A';
         // ────────────────────────────────────────────────────────────────────
 
         require_once ROOT . '/app/views/patient/dashboard.php';
@@ -111,10 +113,10 @@ class PatientController {
 
     // ── GET /patient/viewRecord ──────────────────────────────────────────────
     public function viewRecord(): void {
-        $db   = new Database();
-        $conn = $db->getConnection();
-        $auth = new Auth($conn);
-        $auth->checkPatientAuth();
+       Guard::patient();
+$db   = new Database();
+$conn = $db->getConnection();
+$auth = new Auth($conn);
 
         $patient_id = (int)$auth->getSessionData('patient_id');
         $record_id  = (int)($_GET['record_id'] ?? 0);
@@ -141,11 +143,10 @@ class PatientController {
 
     // ── POST /patient/submitClaim ────────────────────────────────────────────
     public function submitClaim(): void {
-        $db   = new Database();
-        $conn = $db->getConnection();
-        $auth = new Auth($conn);
-        $auth->checkPatientAuth();
-
+        Guard::patient();
+$db   = new Database();
+$conn = $db->getConnection();
+$auth = new Auth($conn);
         $patient_id = (int)$auth->getSessionData('patient_id');
         if ($patient_id <= 0) { header('Location: ' . BASE_URL . '/auth/login'); exit; }
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') { header('Location: ' . BASE_URL . '/patient/dashboard'); exit; }

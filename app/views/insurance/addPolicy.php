@@ -1,12 +1,8 @@
 <?php
-// Variables from InsuranceController::addPolicy()
-// $patientObj (Patient), $insurance_name, $insurance_id, $plans, $success, $error
-
 function e($v): string {
     return htmlspecialchars((string)($v ?? ''), ENT_QUOTES, 'UTF-8');
 }
 
-// ✅ SAFETY: avoid crash if controller forgets naming
 $patient = $patientObj ?? null;
 ?>
 <!DOCTYPE html>
@@ -64,7 +60,7 @@ $patient = $patientObj ?? null;
         <div class="alert alert-danger"><?= e($error) ?></div>
       <?php endif; ?>
 
-      <form method="POST">
+      <form method="POST" id="addPolicyForm" novalidate>
 
         <h6 class="text-primary font-weight-bold">
           <i class="fas fa-id-card mr-1"></i> Patient
@@ -73,24 +69,24 @@ $patient = $patientObj ?? null;
         <div class="row">
           <div class="col-md-4 form-group">
             <label>Patient ID</label>
-            <input class="form-control"
+            <input class="form-control bg-light"
                    value="<?= $patient ? (int)$patient->getPatientId() : '' ?>"
-                   readonly>
+                   readonly tabindex="-1">
           </div>
 
           <div class="col-md-4 form-group">
             <label>Phone</label>
-            <input class="form-control"
+            <input class="form-control bg-light"
                    value="<?= $patient ? e($patient->getPhone()) : '' ?>"
-                   readonly>
+                   readonly tabindex="-1">
           </div>
 
           <div class="col-md-4 form-group">
-            <label>Status</label>
-            <select class="form-control" name="status">
-              <option value="active">active</option>
-              <option value="suspended">suspended</option>
-              <option value="expired">expired</option>
+            <label for="inp_status">Status <span class="text-danger">*</span></label>
+            <select class="form-control" id="inp_status" name="status">
+              <option value="active">Active</option>
+              <option value="suspended">Suspended</option>
+              <option value="expired">Expired</option>
             </select>
           </div>
         </div>
@@ -104,28 +100,24 @@ $patient = $patientObj ?? null;
         <div class="row">
 
           <div class="col-md-6 form-group">
-            <label>Insurance Plan</label>
-
-            <select class="form-control" name="insurance_plan_id" required>
-              <option value="">Select plan...</option>
-
+            <label for="inp_plan">Insurance Plan <span class="text-danger">*</span></label>
+            <select class="form-control" id="inp_plan" name="insurance_plan_id">
+              <option value="">— Select a plan —</option>
               <?php foreach ($plans as $p): ?>
-              <option value="<?= (int)$p["id"] ?>">
-  <?= Validator::sanitizeInput($p["plan_name"]) ?>
-</option>
+              <option value="<?= (int)$p['id'] ?>">
+                <?= Validator::sanitizeInput($p['plan_name']) ?>
+              </option>
               <?php endforeach; ?>
             </select>
-
-            <?php if (empty($plans)): ?>
-              <small class="text-danger">
-                No plans found for this insurance. Create plans first.
-              </small>
-            <?php endif; ?>
+            <div class="invalid-feedback" id="err_plan"></div>
           </div>
 
           <div class="col-md-6 form-group">
-            <label>Policy Number</label>
-            <input class="form-control" name="policy_number" required>
+            <label for="inp_policy_number">Policy Number <span class="text-danger">*</span></label>
+            <input class="form-control" id="inp_policy_number" name="policy_number"
+                   placeholder="e.g. POL-2024-00123"
+                   maxlength="50" autocomplete="off">
+            <div class="invalid-feedback" id="err_policy_number"></div>
           </div>
 
         </div>
@@ -133,19 +125,21 @@ $patient = $patientObj ?? null;
         <div class="row">
 
           <div class="col-md-6 form-group">
-            <label>Start Date</label>
-            <input type="date" class="form-control" name="start_date" required>
+            <label for="inp_start_date">Start Date <span class="text-danger">*</span></label>
+            <input type="date" class="form-control" id="inp_start_date" name="start_date">
+            <div class="invalid-feedback" id="err_start_date"></div>
           </div>
 
           <div class="col-md-6 form-group">
-            <label>End Date (optional)</label>
-            <input type="date" class="form-control" name="end_date">
+            <label for="inp_end_date">End Date <span class="text-danger">*</span></label>
+            <input type="date" class="form-control" id="inp_end_date" name="end_date">
+            <div class="invalid-feedback" id="err_end_date"></div>
           </div>
 
         </div>
 
-        <button class="btn btn-primary btn-block" type="submit"
-                <?= empty($plans) ? "disabled" : "" ?>>
+        <button class="btn btn-primary btn-block" type="submit" id="btnSavePolicy"
+                <?= empty($plans) ? 'disabled' : '' ?>>
           <i class="fas fa-save mr-1"></i> Save Patient Policy
         </button>
 
@@ -156,6 +150,78 @@ $patient = $patientObj ?? null;
 
 <script src="<?= BASE_URL ?>/assets/js/jquery.min.js"></script>
 <script src="<?= BASE_URL ?>/assets/js/bootstrap.bundle.min.js"></script>
+
+<script>
+(function () {
+
+  function el(id) { return document.getElementById(id); }
+  function ok(id) {
+    el('inp_' + id).classList.remove('is-invalid');
+    el('inp_' + id).classList.add('is-valid');
+    el('err_' + id).textContent = '';
+  }
+  function fail(id, m) {
+    el('inp_' + id).classList.remove('is-valid');
+    el('inp_' + id).classList.add('is-invalid');
+    el('err_' + id).textContent = m;
+  }
+
+  function validatePlan() {
+    var v = el('inp_plan').value;
+    if (!v || v === '') { fail('plan', 'Please select an insurance plan.'); return false; }
+    ok('plan'); return true;
+  }
+
+  function validatePolicyNumber() {
+    var v = el('inp_policy_number').value.trim();
+    if (v === '') { fail('policy_number', 'Policy number is required.'); return false; }
+    if (v.length < 3) { fail('policy_number', 'Too short'); return false; }
+    if (v.length > 50) { fail('policy_number', 'Too long'); return false; }
+    ok('policy_number'); return true;
+  }
+
+  function validateStartDate() {
+    var v = el('inp_start_date').value;
+    if (!v) { fail('start_date', 'Start date is required.'); return false; }
+    ok('start_date'); return true;
+  }
+
+  function validateEndDate() {
+    var start = el('inp_start_date').value;
+    var end = el('inp_end_date').value;
+
+    if (!end) {
+      fail('end_date', 'End date is required.');
+      return false;
+    }
+
+    if (start && end <= start) {
+      fail('end_date', 'End date must be after start date.');
+      return false;
+    }
+
+    ok('end_date');
+    return true;
+  }
+
+  el('inp_plan').addEventListener('change', validatePlan);
+  el('inp_policy_number').addEventListener('blur', validatePolicyNumber);
+  el('inp_start_date').addEventListener('change', validateStartDate);
+  el('inp_end_date').addEventListener('change', validateEndDate);
+
+  el('addPolicyForm').addEventListener('submit', function (e) {
+    var valid = [
+      validatePlan(),
+      validatePolicyNumber(),
+      validateStartDate(),
+      validateEndDate()
+    ].every(Boolean);
+
+    if (!valid) e.preventDefault();
+  });
+
+})();
+</script>
 
 </body>
 </html>
