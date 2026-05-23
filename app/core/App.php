@@ -3,6 +3,7 @@
 class App {
 
     public function __construct() {
+        require_once ROOT . '/app/core/Guard.php';
         $url = $_GET['url'] ?? 'landing/index';
         $url = explode('/', trim($url, '/'));
 

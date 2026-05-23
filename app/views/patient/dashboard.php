@@ -340,6 +340,34 @@ function rec_get($rec, string $key, $default = null) {
               <i class="fas fa-tag mr-1"></i>Category: <?= e($diseaseCategory) ?>
             </span>
           </div>
+
+          <?php if ($confidenceScore > 0): ?>
+          <?php
+            $conf_color = $confidenceScore >= 90 ? 'success'
+                        : ($confidenceScore >= 75 ? 'info'
+                        : ($confidenceScore >= 55 ? 'warning' : 'danger'));
+          ?>
+          <div class="mt-3 mb-1">
+            <div class="d-flex justify-content-between align-items-center mb-1">
+              <small class="font-weight-bold" style="font-size:.75rem;text-transform:uppercase;letter-spacing:.4px;color:#fff;">
+                <i class="fas fa-chart-bar mr-1"></i>Model Confidence
+              </small>
+              <small class="font-weight-bold" style="color:#fff;">
+                <?= $confidenceScore ?>% &mdash; <?= e($confidenceLabel) ?>
+              </small>
+            </div>
+            <div class="progress" style="height:10px;border-radius:6px;">
+              <div class="progress-bar bg-<?= $conf_color ?>"
+                   role="progressbar"
+                   style="width:<?= $confidenceScore ?>%;border-radius:6px;transition:width .8s ease;">
+              </div>
+            </div>
+            <small style="font-size:.72rem;color:rgba(255,255,255,0.75);">
+              Based on number of clinical thresholds matched in your latest medical record
+            </small>
+          </div>
+          <?php endif; ?>
+
         </div>
       </div>
 
