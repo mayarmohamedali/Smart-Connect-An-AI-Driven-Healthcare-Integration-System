@@ -219,7 +219,7 @@ class MedicalRecord {
     public function create() {
         $sql = "
             INSERT INTO medical_records (
-                patient_id, hospital_id, age, checkin_date, checkout_date,
+                patient_id, age, checkin_date, checkout_date,
                 cbc_hb1, cbc_tlc1, cbc_plat1, blood_uria1, blood_creatinine1,
                 cbc_hb2, cbc_tlc2, cbc_plat2, blood_uria2, blood_creatinine2,
                 avg_hb, avg_tlc, avg_platelets, avg_urea, avg_creatinine,
@@ -235,7 +235,7 @@ class MedicalRecord {
                 fever, cough, fatigue, chest_pain, shortness_of_breath, headache,
                 diagnosis, disease_category
             ) VALUES (
-                ?, ?, ?, ?, ?,
+                ?, ?, ?, ?,
                 ?, ?, ?, ?, ?,
                 ?, ?, ?, ?, ?,
                 ?, ?, ?, ?, ?,
@@ -261,7 +261,6 @@ class MedicalRecord {
 
         $params = [
             $this->patient_id,
-            $this->hospital_id,
             $this->age,
             $this->checkin_date,
             $this->checkout_date,
@@ -374,7 +373,6 @@ class MedicalRecord {
     public function update() {
         $sql = "
             UPDATE medical_records SET
-                hospital_id = ?,
                 age = ?,
                 checkin_date = ?,
                 checkout_date = ?,
@@ -442,7 +440,6 @@ class MedicalRecord {
         }
 
         $params = [
-            $this->hospital_id,
             $this->age,
             $this->checkin_date,
             $this->checkout_date,
@@ -534,7 +531,6 @@ class MedicalRecord {
             SELECT 
                 record_id,
                 patient_id,
-                hospital_id,
                 created_at,
                 checkin_date,
                 checkout_date,

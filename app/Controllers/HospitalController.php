@@ -24,7 +24,11 @@ $auth = new Auth($conn);
         // Hospital-specific medical records only
         $kpi_medical_records = $this->fetchInt(
             $conn,
-            "SELECT COUNT(*) FROM medical_records WHERE hospital_id = ?",
+            "SELECT COUNT(DISTINCT mr.record_id)
+             FROM medical_records mr
+             INNER JOIN patients p ON p.patient_id = mr.patient_id
+             INNER JOIN insurance_hospitals ih ON ih.insurance_id = p.insurance_id
+             WHERE ih.hospital_id = ?",
             "i",
             [$hospital_id]
         );
@@ -44,10 +48,12 @@ $auth = new Auth($conn);
 
         $kpi_recent_admissions = $this->fetchInt(
             $conn,
-            "SELECT COUNT(*)
-             FROM medical_records
-             WHERE hospital_id = ?
-               AND created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)",
+            "SELECT COUNT(DISTINCT mr.record_id)
+             FROM medical_records mr
+             INNER JOIN patients p ON p.patient_id = mr.patient_id
+             INNER JOIN insurance_hospitals ih ON ih.insurance_id = p.insurance_id
+             WHERE ih.hospital_id = ?
+               AND mr.created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)",
             "i",
             [$hospital_id]
         );
@@ -93,7 +99,9 @@ $auth = new Auth($conn);
             FROM medical_records mr
             INNER JOIN patients p 
                 ON p.patient_id = mr.patient_id
-            WHERE mr.hospital_id = ?
+            INNER JOIN insurance_hospitals ih
+                ON ih.insurance_id = p.insurance_id
+            WHERE ih.hospital_id = ?
               AND mr.created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
             LIMIT 500
         ");
@@ -217,7 +225,11 @@ $auth = new Auth($conn);
                     DELETE FROM medical_records 
                     WHERE record_id = ? 
                       AND patient_id = ?
-                      AND hospital_id = ?
+                      AND patient_id IN (
+                          SELECT p.patient_id FROM patients p
+                          INNER JOIN insurance_hospitals ih ON ih.insurance_id = p.insurance_id
+                          WHERE ih.hospital_id = ?
+                      )
                 ");
                 $del->bind_param('iii', $rid, $patient_id, $hospital_id);
                 $del->execute();
@@ -231,11 +243,13 @@ $auth = new Auth($conn);
         $records = [];
 
         $stmt = $conn->prepare("
-            SELECT * 
-            FROM medical_records 
-            WHERE patient_id = ?
-              AND hospital_id = ?
-            ORDER BY record_id DESC
+            SELECT mr.* 
+            FROM medical_records mr
+            INNER JOIN patients p ON p.patient_id = mr.patient_id
+            INNER JOIN insurance_hospitals ih ON ih.insurance_id = p.insurance_id
+            WHERE mr.patient_id = ?
+              AND ih.hospital_id = ?
+            ORDER BY mr.record_id DESC
         ");
 
         $stmt->bind_param('ii', $patient_id, $hospital_id);
@@ -255,11 +269,13 @@ $auth = new Auth($conn);
 
             if ($rid > 0) {
                 $stmt = $conn->prepare("
-                    SELECT * 
-                    FROM medical_records 
-                    WHERE record_id = ?
-                      AND patient_id = ?
-                      AND hospital_id = ?
+                    SELECT mr.* 
+                    FROM medical_records mr
+                    INNER JOIN patients p ON p.patient_id = mr.patient_id
+                    INNER JOIN insurance_hospitals ih ON ih.insurance_id = p.insurance_id
+                    WHERE mr.record_id = ?
+                      AND mr.patient_id = ?
+                      AND ih.hospital_id = ?
                     LIMIT 1
                 ");
                 $stmt->bind_param('iii', $rid, $patient_id, $hospital_id);
@@ -303,8 +319,10 @@ $auth = new Auth($conn);
                 AVG(COALESCE(mr.risk_score, 0)) AS avg_risk_score
 
             FROM medical_records mr
+            INNER JOIN patients p ON p.patient_id = mr.patient_id
+            INNER JOIN insurance_hospitals ih ON ih.insurance_id = p.insurance_id
 
-            WHERE mr.hospital_id = ?
+            WHERE ih.hospital_id = ?
               AND COALESCE(
                     NULLIF(mr.month, ''),
                     MONTH(COALESCE(mr.checkin_date, mr.created_at, CURDATE()))
@@ -868,11 +886,13 @@ $auth = new Auth($conn);
         }
 
         $stmt = $conn->prepare("
-            SELECT * 
-            FROM medical_records 
-            WHERE record_id = ?
-              AND patient_id = ?
-              AND hospital_id = ?
+            SELECT mr.* 
+            FROM medical_records mr
+            INNER JOIN patients p ON p.patient_id = mr.patient_id
+            INNER JOIN insurance_hospitals ih ON ih.insurance_id = p.insurance_id
+            WHERE mr.record_id = ?
+              AND mr.patient_id = ?
+              AND ih.hospital_id = ?
             LIMIT 1
         ");
         $stmt->bind_param('iii', $record_id, $patient_id, $hospital_id);
@@ -987,7 +1007,6 @@ $auth = new Auth($conn);
         $disease   = $ni2($p['disease_category'] ?? null);
 
         $sql = "UPDATE medical_records SET
-            hospital_id = ?,
             age = ?,
             checkin_date = ?,
             checkout_date = ?,
@@ -1045,16 +1064,14 @@ $auth = new Auth($conn);
             diagnosis = ?,
             disease_category = ?
             WHERE record_id = ?
-              AND patient_id = ?
-              AND hospital_id = ?";
+              AND patient_id = ?";
 
         $stmt = $conn->prepare($sql);
 
-        $types = str_repeat('s', 57) . 'iii';
+        $types = str_repeat('s', 56) . 'ii';
 
         $stmt->bind_param(
             $types,
-            $hospital_id,
             $age,
             $checkin_date,
             $checkout_date,
@@ -1112,8 +1129,7 @@ $auth = new Auth($conn);
             $diagnosis,
             $disease,
             $record_id,
-            $patient_id,
-            $hospital_id
+            $patient_id
         );
 
         $stmt->execute();

@@ -50,7 +50,6 @@ class Patient {
                 p.gender,
                 p.address,
                 p.insurance_id,
-                p.hospital_id,
                 p.is_active,
                 p.created_at,
                 mi.name AS insurance_name
@@ -74,7 +73,6 @@ class Patient {
             $this->gender         = $row["gender"];
             $this->address        = $row["address"];
             $this->insurance_id   = $row["insurance_id"];
-            $this->hospital_id    = $row["hospital_id"];
             $this->is_active      = $row["is_active"];
             $this->insurance_name = $row["insurance_name"] ?? null;
 
@@ -103,20 +101,18 @@ class Patient {
                 gender,
                 address,
                 insurance_id,
-                hospital_id,
                 is_active
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, 1)
+            ) VALUES (?, ?, ?, ?, ?, ?, 1)
         ");
 
         $stmt->bind_param(
-            "sssssii",
+            "sssssi",
             $this->full_name,
             $this->national_id,
             $this->phone,
             $this->gender,
             $this->address,
-            $insurance_id,
-            $hospital_id
+            $insurance_id
         );
 
         if ($stmt->execute()) {
@@ -145,7 +141,6 @@ class Patient {
                 p.gender,
                 p.address,
                 p.insurance_id,
-                p.hospital_id,
                 p.is_active,
                 mi.name AS insurance_name
             FROM patients p
@@ -156,12 +151,6 @@ class Patient {
 
         $types = "";
         $params = [];
-
-        if ($hospital_id !== null && (int)$hospital_id > 0) {
-            $sql .= " AND p.hospital_id = ? ";
-            $types .= "i";
-            $params[] = (int)$hospital_id;
-        }
 
         if ($search_query !== "") {
             $sql .= "
@@ -219,7 +208,6 @@ class Patient {
             p.is_active,
             p.created_at,
             p.insurance_id,
-            p.hospital_id,
             mi.name AS insurance_name
         FROM patients p
         LEFT JOIN medical_insurances mi
@@ -278,7 +266,6 @@ class Patient {
                 p.gender,
                 p.address,
                 p.insurance_id,
-                p.hospital_id,
                 pp.policy_number,
                 pp.start_date,
                 pp.end_date,

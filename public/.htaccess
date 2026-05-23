@@ -1,5 +1,6 @@
 Options -Indexes
 RewriteEngine On
+RewriteBase /Smart-Connect-An-AI-Driven-Healthcare-Integration-System/public/
 
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
