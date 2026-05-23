@@ -92,6 +92,31 @@ $auth = new Auth($conn);
         $claimStatus = $_GET['claim'] ?? '';
         $claimMsg    = $_GET['msg']   ?? '';
 
+        // ── Fetch claim history for display ─────────────────────────────────
+        $claimsHistory = [];
+        $stmtC = $conn->prepare("
+            SELECT c.claim_id, c.claim_amount, c.claim_status, c.created_at,
+                   c.rejection_reason,
+                   CASE c.service_id
+                       WHEN 1 THEN 'Checkup / Consultation'
+                       WHEN 2 THEN 'Operations / Surgery'
+                       WHEN 3 THEN 'Maternity Care'
+                       WHEN 4 THEN 'Dental Services'
+                       WHEN 5 THEN 'Optical Services'
+                       ELSE 'Unknown Service'
+                   END AS service_name
+            FROM claims c
+            WHERE c.patient_id = ?
+            ORDER BY c.claim_id DESC
+            LIMIT 10
+        ");
+        if ($stmtC) {
+            $stmtC->bind_param('i', $patient_id);
+            $stmtC->execute();
+            $claimsHistory = $stmtC->get_result()->fetch_all(MYSQLI_ASSOC);
+            $stmtC->close();
+        }
+
         // ── Flask AI prediction ──────────────────────────────────────────────
         $aiPrediction     = $this->callFlaskPrediction($patient_id);
         $riskLevel        = !empty($aiPrediction['ok'])
@@ -141,67 +166,167 @@ $auth = new Auth($conn);
         
     }
 
+    // ── Helper: map form service_type label → service_id integer ────────────
+    private function resolveServiceId(string $service_type): ?int {
+        $map = [
+            'checkup'    => 1,
+            'operations' => 2,
+            'surgery'    => 2,
+            'maternity'  => 3,
+            'dental'     => 4,
+            'optical'    => 5,
+        ];
+        return $map[strtolower(trim($service_type))] ?? null;
+    }
+
+    // ── POST /patient/processClaim ───────────────────────────────────────────
+    // Fully automated: checks policy, coverage, threshold → sets Accepted or Rejected
+    public function processClaim(): void {
+        $this->submitClaim();
+    }
+
     // ── POST /patient/submitClaim ────────────────────────────────────────────
     public function submitClaim(): void {
-        Guard::patient();
-$db   = new Database();
-$conn = $db->getConnection();
-$auth = new Auth($conn);
-        $patient_id = (int)$auth->getSessionData('patient_id');
-        if ($patient_id <= 0) { header('Location: ' . BASE_URL . '/auth/login'); exit; }
-        if ($_SERVER['REQUEST_METHOD'] !== 'POST') { header('Location: ' . BASE_URL . '/patient/dashboard'); exit; }
+    $db   = new Database();
+    $conn = $db->getConnection();
+    $auth = new Auth($conn);
+    $auth->checkPatientAuth();
 
-        $redirect = function(string $status, string $msg = '') {
-            $url = BASE_URL . '/patient/dashboard?claim=' . urlencode($status);
-            if ($msg) $url .= '&msg=' . urlencode($msg);
-            header('Location: ' . $url);
-            exit;
-        };
+    $patient_id = (int)$auth->getSessionData('patient_id');
+    if ($patient_id <= 0) { header('Location: ' . BASE_URL . '/auth/login'); exit; }
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST') { header('Location: ' . BASE_URL . '/patient/dashboard'); exit; }
 
-        $service_name = trim($_POST['service_type']  ?? '');
-        $claim_amount = trim($_POST['claim_amount'] ?? '');
-        if (!$service_name || !$claim_amount) $redirect('error', 'Service type and claim amount are required.');
-        if ((float)$claim_amount <= 0) $redirect('error', 'Claim amount must be greater than zero.');
+    $redirect = function(string $status, string $msg = '') {
+        $url = BASE_URL . '/patient/dashboard?claim=' . urlencode($status);
+        if ($msg) $url .= '&msg=' . urlencode($msg);
+        header('Location: ' . $url);
+        exit;
+    };
 
-        // Patient's insurance
-        $stmt = $conn->prepare('SELECT insurance_id FROM patients WHERE patient_id = ? AND is_active = 1 LIMIT 1');
-        $stmt->bind_param('i', $patient_id);
+    // Helper: insert and redirect, always saving the row
+    $saveAndRedirect = function(
+        string $final_status,
+        string $reason,
+        int    $record_id,
+        int    $patient_id,
+        int    $insurance_id,
+        int    $db_service_id,
+        float  $amt
+    ) use ($conn, $db, $redirect) {
+        $stmt = $conn->prepare("
+            INSERT INTO claims
+                (record_id, patient_id, insurance_id, service_id, treatment_cost, claim_amount, claim_status, rejection_reason)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ");
+        $stmt->bind_param('iiiiddss',
+            $record_id, $patient_id, $insurance_id, $db_service_id,
+            $amt, $amt, $final_status, $reason
+        );
         $stmt->execute();
-        $row = $stmt->get_result()->fetch_assoc();
         $stmt->close();
-        if (!$row || !$row['insurance_id']) $redirect('error', 'No active insurance found for your account.');
-        $insurance_id = (int)$row['insurance_id'];
-
-        // Resolve service id
-        $stmt = $conn->prepare('SELECT id FROM service WHERE name = ? LIMIT 1');
-        $stmt->bind_param('s', $service_name);
-        $stmt->execute();
-        $svcRow = $stmt->get_result()->fetch_assoc();
-        $stmt->close();
-        if (!$svcRow) {
-            $stmt = $conn->prepare('SELECT id FROM service WHERE LOWER(name) = LOWER(?) LIMIT 1');
-            $stmt->bind_param('s', $service_name);
-            $stmt->execute();
-            $svcRow = $stmt->get_result()->fetch_assoc();
-            $stmt->close();
-        }
-        $svc_id = $svcRow ? (string)$svcRow['id'] : null;
-
-        // Latest medical record
-        $stmt = $conn->prepare('SELECT record_id FROM medical_records WHERE patient_id = ? ORDER BY record_id DESC LIMIT 1');
-        $stmt->bind_param('i', $patient_id);
-        $stmt->execute();
-        $recRow = $stmt->get_result()->fetch_assoc();
-        $stmt->close();
-        if (!$recRow) $redirect('error', 'No medical record found. A claim requires at least one medical record on file.');
-        $record_id = (int)$recRow['record_id'];
-
-        $amt = (float)$claim_amount;
-        $stmt = $conn->prepare("INSERT INTO claims (record_id,patient_id,insurance_id,service_id,treatment_cost,claim_amount,claim_status) VALUES (?,?,?,?,?,?,'Pending')");
-        $stmt->bind_param('ssssss', $record_id, $patient_id, $insurance_id, $svc_id, $amt, $amt);
-        if ($stmt->execute()) { $stmt->close(); $redirect('success'); }
-        else { $err = $stmt->error; $stmt->close(); $redirect('error', 'Database error: ' . $err); }
-
         $db->close();
+
+        if ($final_status === 'Accepted') {
+            $redirect('accepted', 'Your claim has been accepted successfully.');
+        } else {
+            $redirect('rejected', $reason);
+        }
+    };
+
+    // Step 1: Validate input
+    $service_type = trim($_POST['service_type'] ?? '');
+    $claim_amount = trim($_POST['claim_amount'] ?? '');
+    if (!$service_type || !$claim_amount) $redirect('error', 'Service type and claim amount are required.');
+    $amt = (float)$claim_amount;
+    if ($amt <= 0) $redirect('error', 'Claim amount must be greater than zero.');
+
+    // Step 2: Need a medical record before we can insert anything
+    $stmt = $conn->prepare('SELECT record_id FROM medical_records WHERE patient_id = ? ORDER BY record_id DESC LIMIT 1');
+    $stmt->bind_param('i', $patient_id);
+    $stmt->execute();
+    $recRow = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    if (!$recRow) {
+        $redirect('error', 'No medical record found. A claim requires at least one medical record on file.');
     }
+    $record_id     = (int)$recRow['record_id'];
+    $service_id    = $this->resolveServiceId($service_type);
+    $db_service_id = $service_id ?? 0;
+
+    // Step 3: Patient must be active and have an insurance_id
+    $stmt = $conn->prepare('SELECT insurance_id FROM patients WHERE patient_id = ? AND is_active = 1 LIMIT 1');
+    $stmt->bind_param('i', $patient_id);
+    $stmt->execute();
+    $patientRow = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    if (!$patientRow || !$patientRow['insurance_id']) {
+        $saveAndRedirect('Rejected', 'No active insurance found for your account.',
+            $record_id, $patient_id, 0, $db_service_id, $amt);
+    }
+    $insurance_id = (int)$patientRow['insurance_id'];
+
+    // Step 4: Load the patient's most recent policy
+    $stmt = $conn->prepare('
+        SELECT patient_policy_id, insurance_plan_id, status, end_date
+        FROM patient_policy
+        WHERE patient_id = ?
+        ORDER BY patient_policy_id DESC
+        LIMIT 1
+    ');
+    $stmt->bind_param('i', $patient_id);
+    $stmt->execute();
+    $policy = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    if (!$policy) {
+        $saveAndRedirect('Rejected', 'No insurance policy found for your account.',
+            $record_id, $patient_id, $insurance_id, $db_service_id, $amt);
+    }
+
+    if (strtolower($policy['status']) !== 'active') {
+        $saveAndRedirect('Rejected', 'Your insurance policy is not active.',
+            $record_id, $patient_id, $insurance_id, $db_service_id, $amt);
+    }
+
+    if (!empty($policy['end_date'])) {
+        $today    = new DateTime('today');
+        $end_date = new DateTime($policy['end_date']);
+        if ($end_date < $today) {
+            $saveAndRedirect('Rejected', 'Your insurance policy has expired.',
+                $record_id, $patient_id, $insurance_id, $db_service_id, $amt);
+        }
+    }
+
+    $insurance_plan_id = (int)$policy['insurance_plan_id'];
+
+    // Step 5: Check coverage
+    $final_status  = 'Rejected';
+    $reject_reason = '';
+
+    if ($service_id === null) {
+        $reject_reason = 'The selected service type is not recognized.';
+    } else {
+        $stmt = $conn->prepare('
+            SELECT is_enabled, threshold_egp
+            FROM plan_service_coverage
+            WHERE insurance_plan_id = ? AND service_id = ?
+            LIMIT 1
+        ');
+        $stmt->bind_param('ii', $insurance_plan_id, $service_id);
+        $stmt->execute();
+        $coverage = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+
+        if (!$coverage || (int)$coverage['is_enabled'] !== 1) {
+            $reject_reason = 'This service is not covered under your insurance plan.';
+        } elseif ($amt > (float)$coverage['threshold_egp']) {
+            $threshold     = (float)$coverage['threshold_egp'];
+            $reject_reason = "Claim amount exceeds the covered threshold of {$threshold} EGP for this service.";
+        } else {
+            $final_status = 'Accepted';
+        }
+    }
+
+    $saveAndRedirect($final_status, $reject_reason,
+        $record_id, $patient_id, $insurance_id, $db_service_id, $amt);
+}
 }

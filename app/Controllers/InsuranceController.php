@@ -307,12 +307,6 @@ $auth = new Auth($conn);
 
         $insurance_name   = $auth->getSessionData('staff_name') ?? 'Medical Insurance';
 
-        // Auto-setup: ensure all 4 default policy types exist
-        $autoSetup = new PolicyAutoSetup($conn);
-        if (!$autoSetup->hasAllPolicies($insurance_id)) {
-            $autoSetup->createDefaultPolicies($insurance_id);
-        }
-
         $insurancePlanObj  = new InsurancePlan($conn);
         $policies          = $insurancePlanObj->getAllPoliciesForInsurance($insurance_id);
         $completion_status = $insurancePlanObj->getPolicyCompletionStatus($insurance_id);

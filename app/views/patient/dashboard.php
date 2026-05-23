@@ -164,19 +164,38 @@ function rec_get($rec, string $key, $default = null) {
 
   <!-- ── Claim feedback alerts ── -->
   <?php if ($claimStatus === 'success'): ?>
-    <div class="alert alert-success alert-dismissible fade show shadow-sm" role="alert">
-      <i class="fas fa-check-circle mr-2"></i>
-      <strong>Claim submitted successfully!</strong>
-      Your claim is now <span class="badge badge-warning">Pending</span> review by your insurance provider.
-      <button type="button" class="close" data-dismiss="alert">&times;</button>
-    </div>
-  <?php elseif ($claimStatus === 'error'): ?>
-    <div class="alert alert-danger alert-dismissible fade show shadow-sm" role="alert">
-      <i class="fas fa-exclamation-circle mr-2"></i>
-      <strong>Claim submission failed.</strong> <?= e($claimMsg) ?>
-      <button type="button" class="close" data-dismiss="alert">&times;</button>
-    </div>
-  <?php endif; ?>
+    <!-- legacy fallback – should not normally appear -->
+  <div class="alert alert-success alert-dismissible fade show shadow-sm" role="alert">
+    <i class="fas fa-check-circle mr-2"></i>
+    <strong>Claim submitted successfully!</strong>
+    Your claim is now <span class="badge badge-warning">Pending</span> review by your insurance provider.
+    <button type="button" class="close" data-dismiss="alert">&times;</button>
+  </div>
+<?php elseif ($claimStatus === 'approved'): ?>
+  <div class="alert alert-success alert-dismissible fade show shadow-sm" role="alert">
+    <i class="fas fa-check-circle mr-2"></i>
+    <strong>Claim Approved!</strong> <?= e($claimMsg) ?>
+    <button type="button" class="close" data-dismiss="alert">&times;</button>
+  </div>
+<?php elseif ($claimStatus === 'accepted'): ?>
+  <div class="alert alert-success alert-dismissible fade show shadow-sm" role="alert">
+    <i class="fas fa-check-circle mr-2"></i>
+    <strong>Claim Accepted!</strong> Your claim has been automatically approved.
+    <button type="button" class="close" data-dismiss="alert">&times;</button>
+  </div>
+<?php elseif ($claimStatus === 'rejected'): ?>
+  <div class="alert alert-danger alert-dismissible fade show shadow-sm" role="alert">
+    <i class="fas fa-times-circle mr-2"></i>
+    <strong>Claim Rejected.</strong> <?= e($claimMsg) ?>
+    <button type="button" class="close" data-dismiss="alert">&times;</button>
+  </div>
+<?php elseif ($claimStatus === 'error'): ?>
+  <div class="alert alert-danger alert-dismissible fade show shadow-sm" role="alert">
+    <i class="fas fa-exclamation-circle mr-2"></i>
+    <strong>Claim submission failed.</strong> <?= e($claimMsg) ?>
+    <button type="button" class="close" data-dismiss="alert">&times;</button>
+  </div>
+<?php endif; ?>
 
   <!-- ── PROFILE ── -->
   <div id="profile" class="anchor-offset"></div>
@@ -503,6 +522,240 @@ function rec_get($rec, string $key, $default = null) {
 
     </div>
   </div>
+
+  <!-- ── CLAIM HISTORY ── -->
+  <?php if (!empty($claimsHistory)): ?>
+  <div class="rclaims-wrapper mb-4">
+    <div class="rclaims-header">
+      <div class="rclaims-title-group">
+        <div class="rclaims-icon-wrap">
+          <i class="fas fa-file-invoice-dollar"></i>
+        </div>
+        <div>
+          <h6 class="rclaims-title">Your Recent Claims</h6>
+          <p class="rclaims-subtitle">Track status and outcomes of submitted claims</p>
+        </div>
+      </div>
+      <span class="rclaims-count-badge">
+        <?= count($claimsHistory) ?> record<?= count($claimsHistory) !== 1 ? 's' : '' ?>
+      </span>
+    </div>
+
+    <div class="rclaims-list">
+      <?php foreach ($claimsHistory as $cl): ?>
+      <?php
+        $cs = strtolower($cl['claim_status'] ?? '');
+        $isApproved = $cs === 'approved';
+        $isRejected = $cs === 'rejected';
+        $isPending  = !$isApproved && !$isRejected;
+        $stateClass = $isApproved ? 'state-approved' : ($isRejected ? 'state-rejected' : 'state-pending');
+        $icon       = $isApproved ? 'check-circle' : ($isRejected ? 'times-circle' : 'clock');
+        $statusLabel = ucfirst($cl['claim_status'] ?? 'Pending');
+      ?>
+      <div class="rclaim-card <?= $stateClass ?>">
+        <div class="rclaim-status-bar"></div>
+        <div class="rclaim-body">
+
+          <!-- Left: ID + Service -->
+          <div class="rclaim-left">
+            <span class="rclaim-id">#<?= (int)$cl['claim_id'] ?></span>
+            <span class="rclaim-service">
+              <i class="fas fa-stethoscope mr-1"></i>
+              <?= e($cl['service_name'] ?: 'General Service') ?>
+            </span>
+            <span class="rclaim-date">
+              <i class="far fa-calendar-alt mr-1"></i>
+              <?= $cl['created_at'] ? date('d M Y', strtotime($cl['created_at'])) : '—' ?>
+            </span>
+          </div>
+
+          <!-- Center: Amount -->
+          <div class="rclaim-amount-wrap">
+            <span class="rclaim-amount-label">Claim Amount</span>
+            <span class="rclaim-amount"><?= number_format((float)$cl['claim_amount'], 2) ?></span>
+            <span class="rclaim-currency">EGP</span>
+          </div>
+
+          <!-- Right: Status -->
+          <div class="rclaim-status-wrap">
+            <span class="rclaim-status-pill">
+              <i class="fas fa-<?= $icon ?> mr-1"></i>
+              <?= e($statusLabel) ?>
+            </span>
+          </div>
+
+        </div>
+
+        <?php if ($isRejected && !empty($cl['rejection_reason'])): ?>
+        <div class="rclaim-rejection">
+          <i class="fas fa-exclamation-triangle rclaim-rejection-icon"></i>
+          <div>
+            <span class="rclaim-rejection-label">Rejection Reason</span>
+            <span class="rclaim-rejection-text"><?= e($cl['rejection_reason']) ?></span>
+          </div>
+        </div>
+        <?php endif; ?>
+      </div>
+      <?php endforeach; ?>
+    </div>
+  </div>
+
+  <style>
+    /* ── Recent Claims enhanced styles ── */
+    .rclaims-wrapper {
+      background: #fff;
+      border-radius: 18px;
+      box-shadow: 0 4px 24px rgba(0,0,0,.07);
+      overflow: hidden;
+    }
+    .rclaims-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 20px 24px 16px;
+      border-bottom: 1px solid #f0f2f7;
+      background: linear-gradient(135deg, #f8faff 0%, #fff 100%);
+    }
+    .rclaims-title-group {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .rclaims-icon-wrap {
+      width: 42px; height: 42px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, #3b82f6, #6366f1);
+      display: flex; align-items: center; justify-content: center;
+      color: #fff; font-size: 1rem;
+      box-shadow: 0 6px 14px rgba(99,102,241,.28);
+      flex: 0 0 auto;
+    }
+    .rclaims-title {
+      margin: 0; font-size: .95rem; font-weight: 800; color: #1e293b;
+    }
+    .rclaims-subtitle {
+      margin: 0; font-size: .78rem; color: #94a3b8;
+    }
+    .rclaims-count-badge {
+      background: linear-gradient(135deg, #e0e7ff, #ddd6fe);
+      color: #4f46e5; font-weight: 800; font-size: .78rem;
+      padding: 5px 12px; border-radius: 999px;
+    }
+
+    /* List */
+    .rclaims-list {
+      padding: 16px 20px;
+      display: flex; flex-direction: column; gap: 12px;
+    }
+
+    /* Individual claim card */
+    .rclaim-card {
+      border-radius: 14px;
+      border: 1px solid #e8ecf4;
+      overflow: hidden;
+      transition: box-shadow .18s, transform .18s;
+      background: #fff;
+    }
+    .rclaim-card:hover {
+      box-shadow: 0 8px 24px rgba(0,0,0,.09);
+      transform: translateY(-1px);
+    }
+
+    /* Coloured left bar */
+    .rclaim-status-bar {
+      height: 4px;
+      width: 100%;
+    }
+    .state-approved .rclaim-status-bar { background: linear-gradient(90deg, #22c55e, #16a34a); }
+    .state-rejected .rclaim-status-bar { background: linear-gradient(90deg, #ef4444, #dc2626); }
+    .state-pending  .rclaim-status-bar { background: linear-gradient(90deg, #f59e0b, #d97706); }
+
+    /* Body row */
+    .rclaim-body {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 14px 18px;
+      flex-wrap: wrap;
+    }
+
+    /* Left group */
+    .rclaim-left {
+      display: flex; flex-direction: column; gap: 3px;
+      flex: 1 1 160px; min-width: 0;
+    }
+    .rclaim-id {
+      font-size: .72rem; font-weight: 700;
+      color: #94a3b8; letter-spacing: .04em;
+    }
+    .rclaim-service {
+      font-size: .88rem; font-weight: 700; color: #1e293b;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .rclaim-date {
+      font-size: .76rem; color: #94a3b8;
+    }
+
+    /* Amount */
+    .rclaim-amount-wrap {
+      display: flex; flex-direction: column; align-items: flex-end;
+      flex: 0 0 auto; text-align: right;
+    }
+    .rclaim-amount-label {
+      font-size: .7rem; color: #94a3b8; font-weight: 600;
+      text-transform: uppercase; letter-spacing: .06em;
+    }
+    .rclaim-amount {
+      font-size: 1.15rem; font-weight: 900; color: #0f172a; line-height: 1.1;
+    }
+    .rclaim-currency {
+      font-size: .72rem; font-weight: 700; color: #64748b;
+    }
+
+    /* Status pill */
+    .rclaim-status-wrap { flex: 0 0 auto; }
+    .rclaim-status-pill {
+      display: inline-flex; align-items: center; gap: 5px;
+      padding: 6px 14px; border-radius: 999px;
+      font-size: .78rem; font-weight: 800; letter-spacing: .02em;
+    }
+    .state-approved .rclaim-status-pill {
+      background: #dcfce7; color: #15803d;
+    }
+    .state-rejected .rclaim-status-pill {
+      background: #fee2e2; color: #b91c1c;
+    }
+    .state-pending .rclaim-status-pill {
+      background: #fef3c7; color: #b45309;
+    }
+
+    /* Rejection reason banner */
+    .rclaim-rejection {
+      display: flex; align-items: flex-start; gap: 10px;
+      margin: 0 18px 14px;
+      padding: 10px 14px;
+      border-radius: 10px;
+      background: #fff5f5;
+      border: 1px solid #fecaca;
+    }
+    .rclaim-rejection-icon {
+      color: #ef4444; font-size: .9rem; margin-top: 2px; flex: 0 0 auto;
+    }
+    .rclaim-rejection-label {
+      display: block; font-size: .7rem; font-weight: 800;
+      text-transform: uppercase; letter-spacing: .06em;
+      color: #b91c1c; margin-bottom: 2px;
+    }
+    .rclaim-rejection-text {
+      display: block; font-size: .83rem; color: #7f1d1d; line-height: 1.4;
+    }
+
+    @media (max-width: 576px) {
+      .rclaim-body { flex-direction: column; align-items: flex-start; }
+      .rclaim-amount-wrap { align-items: flex-start; }
+    }
+  </style>
+  <?php endif; ?>
 
 </div><!-- /container-fluid -->
 
