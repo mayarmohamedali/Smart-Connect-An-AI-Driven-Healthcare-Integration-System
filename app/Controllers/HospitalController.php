@@ -4,20 +4,14 @@ class HospitalController {
 
     // ── GET /hospital/dashboard ──────────────────────────────────────────────
     public function dashboard(): void {
-<<<<<<< Updated upstream
-        $db   = new Database();
-        $conn = $db->getConnection();
-        $auth = new Auth($conn);
-        $auth->checkStaffAuth('HOSPITAL_STAFF');
-=======
         Guard::staff('HOSPITAL_STAFF');
 
         $db   = new Database();
         $conn = $db->getConnection();
         $auth = new Auth($conn);
->>>>>>> Stashed changes
 
         $hospital_id = (int)($auth->getSessionData('hospital_id') ?? 0);
+
         if ($hospital_id <= 0) {
             header('Location: ' . BASE_URL . '/auth/login');
             exit;
@@ -29,7 +23,7 @@ class HospitalController {
 
         $kpi_patients = $hospitalObj->getKPIPatients();
 
-        // No hospital_id column in medical_records now, so count all records.
+        // medical_records no longer has hospital_id, so count all records.
         $kpi_medical_records = $this->fetchInt(
             $conn,
             "SELECT COUNT(*) FROM medical_records",
@@ -64,11 +58,11 @@ class HospitalController {
         $patients = $patientObj->getPatientsByHospital($hospital_id, $q) ?? [];
 
         $success_msg = '';
-        $error_msg = '';
+        $error_msg   = '';
 
         require_once ROOT . '/app/models/EpidemicForecast.php';
 
-        // No hospital_id column, so this uses all medical records.
+        // medical_records no longer has hospital_id, so this reads all records.
         $stmt = $conn->prepare("
             SELECT
                 COALESCE(mr.age, 35)                             AS Age,
@@ -156,18 +150,10 @@ class HospitalController {
 
     // ── GET /hospital/viewRecords ────────────────────────────────────────────
     public function viewRecords(): void {
-<<<<<<< Updated upstream
-        $db   = new Database();
-        $conn = $db->getConnection();
-        $auth = new Auth($conn);
-        $auth->checkStaffAuth('HOSPITAL_STAFF');
-=======
         Guard::staff('HOSPITAL_STAFF');
->>>>>>> Stashed changes
 
         $db   = new Database();
         $conn = $db->getConnection();
-        $auth = new Auth($conn);
 
         $patient_id = (int)($_GET['patient_id'] ?? 0);
 
@@ -585,18 +571,10 @@ class HospitalController {
 
     // ── GET|POST /hospital/addRecord ─────────────────────────────────────────
     public function addRecord(): void {
-<<<<<<< Updated upstream
-        $db   = new Database();
-        $conn = $db->getConnection();
-        $auth = new Auth($conn);
-        $auth->checkStaffAuth('HOSPITAL_STAFF');
-=======
         Guard::staff('HOSPITAL_STAFF');
->>>>>>> Stashed changes
 
         $db   = new Database();
         $conn = $db->getConnection();
-        $auth = new Auth($conn);
 
         $patient_id = (int)($_GET['patient_id'] ?? 0);
 
@@ -718,14 +696,7 @@ class HospitalController {
 
     // ── GET|POST /hospital/editRecord ────────────────────────────────────────
     public function editRecord(): void {
-<<<<<<< Updated upstream
-        $db   = new Database();
-        $conn = $db->getConnection();
-        $auth = new Auth($conn);
-        $auth->checkStaffAuth('HOSPITAL_STAFF');
-=======
         Guard::staff('HOSPITAL_STAFF');
->>>>>>> Stashed changes
 
         $db   = new Database();
         $conn = $db->getConnection();
