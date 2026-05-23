@@ -19,7 +19,42 @@ warnings.filterwarnings("ignore")
 app = Flask(__name__)
 CORS(app)
 
+import os
+import pickle
+import traceback
 
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+MODELS_DIR = os.path.join(BASE_DIR, "models")
+
+patient_model = None
+patient_scaler = None
+patient_feature_columns = None
+patient_label_encoder = None
+preventive_measures = {}
+risk_alerts = {}
+disease_category = {}
+
+def load_pickle_file(filename):
+    file_path = os.path.join(MODELS_DIR, filename)
+    with open(file_path, "rb") as f:
+        return pickle.load(f)
+
+try:
+    patient_model = load_pickle_file("patient_best_model.pkl")
+    patient_scaler = load_pickle_file("patient_model_scaler.pkl")
+    patient_feature_columns = load_pickle_file("patient_feature_columns.pkl")
+    patient_label_encoder = load_pickle_file("patient_label_encoder.pkl")
+
+    preventive_measures = load_pickle_file("preventive_measures.pkl")
+    risk_alerts = load_pickle_file("risk_alerts.pkl")
+    disease_category = load_pickle_file("disease_category.pkl")
+
+    print("✅ Patient model loaded")
+
+except Exception as e:
+    print("❌ Patient model failed to load")
+    print(e)
+    traceback.print_exc()
 # ═══════════════════════════════════════════════════════════════════════════════
 #  PATHS
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -51,7 +86,7 @@ DB_CONFIG = {
     "user"       : "root",
     "password"   : "",
     "database"   : "smart_connect",
-    "port"       : 3306,
+    "port"       : 3307,
     "cursorclass": pymysql.cursors.DictCursor,
 }
 
