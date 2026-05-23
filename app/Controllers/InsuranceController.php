@@ -76,17 +76,17 @@ $auth = new Auth($conn);
         // Pull real claims + patient data for this insurance company
         $stmt = $conn->prepare("
             SELECT
-                COALESCE(mr.age, 35)                                    AS Age,
-                CASE p.gender WHEN 'M' THEN 'Male' ELSE 'Female' END   AS Gender,
-                COALESCE(mr.bmi, 25.0)                                  AS BMI,
-                COALESCE(mr.systolic_bp, 120)                           AS Blood_Pressure,
-                COALESCE(c.treatment_cost, 5000)                        AS Treatment_Cost,
-                COALESCE(c.coverage_percentage, 0.75)                   AS Coverage_Percentage,
-                COALESCE(c.claim_amount, 3000)                          AS Claim_Amount,
-                c.claim_status                                          AS Claim_Status,
-                COALESCE(mr.admission_count, 1)                         AS Admission_Count,
-                COALESCE(mr.length_of_stay, 3)                          AS Length_of_Stay,
-                YEAR(COALESCE(c.created_at, NOW()))                     AS Year
+                COALESCE(mr.age, 35)                                                          AS Age,
+                CASE p.gender WHEN 'M' THEN 'Male' ELSE 'Female' END                         AS Gender,
+                COALESCE(mr.bmi, 25.0)                                                        AS BMI,
+                COALESCE(mr.systolic_bp, 120)                                                 AS Blood_Pressure,
+                LEAST(COALESCE(c.treatment_cost, 5000), 30000)                               AS Treatment_Cost,
+                COALESCE(c.coverage_percentage, 0.75)                                         AS Coverage_Percentage,
+                LEAST(COALESCE(c.claim_amount, 3000), 25000)                                  AS Claim_Amount,
+                c.claim_status                                                                AS Claim_Status,
+                COALESCE(mr.admission_count, 1)                                               AS Admission_Count,
+                COALESCE(mr.length_of_stay, 3)                                                AS Length_of_Stay,
+                YEAR(COALESCE(c.created_at, NOW()))                                           AS Year
             FROM claims c
             INNER JOIN patients        p  ON p.patient_id  = c.patient_id
             LEFT  JOIN medical_records mr ON mr.patient_id = c.patient_id
@@ -124,14 +124,25 @@ $auth = new Auth($conn);
         $ml_forecast = [];
 
         if ($api_alive) {
-            if ($db_records_count >= 10) {
-                $ml_forecast = $forecast->getLiveForecast($insurance_name, $patients_for_forecast);
-                if (empty($ml_forecast) || ($ml_forecast['status'] ?? '') !== 'ok') {
-                    error_log('[InsuranceController] Live forecast failed: ' . json_encode($ml_forecast));
-                    $ml_forecast = $forecast->getSavedForecast($insurance_name);
+            // Always load the saved (trained) forecast as the primary source.
+            // It was trained on ~49k rows and produces stable, sensible numbers.
+            $ml_forecast = $forecast->getSavedForecast($insurance_name);
+
+            // Only call the live endpoint when we have enough records from
+            // multiple years to avoid outlier distortion. 11 same-year claims
+            // produce a huge cost_delta_pct that inflates the blended forecast.
+            if ($db_records_count >= 50) {
+                $live = $forecast->getLiveForecast($insurance_name, $patients_for_forecast);
+                if (!empty($live) && ($live['status'] ?? '') === 'ok') {
+                    // Merge: keep saved history for the chart, take live blended %
+                    $ml_forecast['blended_change_pct'] = $live['blended_change_pct'];
+                    $ml_forecast['lower_pct']          = $live['lower_pct'];
+                    $ml_forecast['upper_pct']          = $live['upper_pct'];
+                    $ml_forecast['uncertainty_pp']     = $live['uncertainty_pp'] ?? $ml_forecast['uncertainty_pp'];
+                    $ml_forecast['confidence_score']   = $live['confidence_score'] ?? $ml_forecast['confidence_score'];
+                    $ml_forecast['confidence_label']   = $live['confidence_label'] ?? $ml_forecast['confidence_label'];
+                    $ml_forecast['source']             = 'live_adjusted';
                 }
-            } else {
-                $ml_forecast = $forecast->getSavedForecast($insurance_name);
             }
         }
 
