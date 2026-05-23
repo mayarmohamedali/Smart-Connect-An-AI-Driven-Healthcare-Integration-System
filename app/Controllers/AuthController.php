@@ -11,6 +11,7 @@ class AuthController {
     exit;
 }
     public function login(): void {
+         Guard::guest();
         require_once ROOT . '/app/views/auth/login.php';
     }
 

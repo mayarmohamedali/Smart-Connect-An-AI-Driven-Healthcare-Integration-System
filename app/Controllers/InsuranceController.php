@@ -7,10 +7,10 @@ class InsuranceController {
 
     // ── GET|POST /insurance/dashboard ────────────────────────────────────────
     public function dashboard(): void {
-        $db   = new Database();
-        $conn = $db->getConnection();
-        $auth = new Auth($conn);
-        $auth->checkStaffAuth('INSURANCE_STAFF');
+       Guard::staff('INSURANCE_STAFF');
+$db   = new Database();
+$conn = $db->getConnection();
+$auth = new Auth($conn);
 
         $insurance_id = (int)($auth->getSessionData('insurance_id') ?? 0);
         if ($insurance_id <= 0) die('Missing insurance_id in session.');
@@ -242,10 +242,10 @@ class InsuranceController {
 
     // ── GET|POST /insurance/addPolicy ────────────────────────────────────────
     public function addPolicy(): void {
-        $db   = new Database();
-        $conn = $db->getConnection();
-        $auth = new Auth($conn);
-        $auth->checkStaffAuth('INSURANCE_STAFF');
+        Guard::staff('INSURANCE_STAFF');
+$db   = new Database();
+$conn = $db->getConnection();
+$auth = new Auth($conn);
 
         $insurance_id = (int)($auth->getSessionData('insurance_id') ?? 0);
         $patient_id   = (int)($_GET['patient_id'] ?? 0);
@@ -295,10 +295,10 @@ class InsuranceController {
 
     // ── GET /insurance/policy ────────────────────────────────────────────────
     public function policy(): void {
-        $db   = new Database();
-        $conn = $db->getConnection();
-        $auth = new Auth($conn);
-        $auth->checkStaffAuth('INSURANCE_STAFF');
+        Guard::staff('INSURANCE_STAFF');
+$db   = new Database();
+$conn = $db->getConnection();
+$auth = new Auth($conn);
 
         $insurance_id   = (int)($auth->getSessionData('insurance_id') ?? 0);
         if ($insurance_id <= 0) die('Missing insurance_id in session.');
@@ -328,10 +328,10 @@ class InsuranceController {
 
     // ── GET /insurance/editPolicy ────────────────────────────────────────────
     public function editPolicy(): void {
-        $db   = new Database();
-        $conn = $db->getConnection();
-        $auth = new Auth($conn);
-        $auth->checkStaffAuth('INSURANCE_STAFF');
+       Guard::staff('INSURANCE_STAFF');
+$db   = new Database();
+$conn = $db->getConnection();
+$auth = new Auth($conn);
 
         $insurance_id     = (int)($auth->getSessionData('insurance_id') ?? 0);
         if ($insurance_id <= 0) die('Missing insurance_id in session.');
@@ -366,10 +366,10 @@ if ($is_editing && !empty($existing_plan['plan_id'])) {
 
     // ── POST /insurance/savePolicy ───────────────────────────────────────────
     public function savePolicy(): void {
-        $db   = new Database();
-        $conn = $db->getConnection();
-        $auth = new Auth($conn);
-        $auth->checkStaffAuth('INSURANCE_STAFF');
+        Guard::staff('INSURANCE_STAFF');
+$db   = new Database();
+$conn = $db->getConnection();
+$auth = new Auth($conn);
 
         $insurance_id     = (int)($auth->getSessionData('insurance_id') ?? 0);
         if ($insurance_id <= 0) die('Missing insurance_id in session');
@@ -422,10 +422,10 @@ if ($is_editing && !empty($existing_plan['plan_id'])) {
 
     // ── GET /insurance/createAllPolicies ─────────────────────────────────────
     public function createAllPolicies(): void {
-        $db   = new Database();
-        $conn = $db->getConnection();
-        $auth = new Auth($conn);
-        $auth->checkStaffAuth('INSURANCE_STAFF');
+       Guard::staff('INSURANCE_STAFF');
+$db   = new Database();
+$conn = $db->getConnection();
+$auth = new Auth($conn);
 
         $insurance_id   = (int)($auth->getSessionData('insurance_id') ?? 0);
         if ($insurance_id <= 0) die('Missing insurance_id in session.');
@@ -437,10 +437,10 @@ if ($is_editing && !empty($existing_plan['plan_id'])) {
 
     // ── POST /insurance/saveAllPolicies ──────────────────────────────────────
     public function saveAllPolicies(): void {
-        $db   = new Database();
-        $conn = $db->getConnection();
-        $auth = new Auth($conn);
-        $auth->checkStaffAuth('INSURANCE_STAFF');
+        Guard::staff('INSURANCE_STAFF');
+$db   = new Database();
+$conn = $db->getConnection();
+$auth = new Auth($conn);
 
         $insurance_id = (int)($auth->getSessionData('insurance_id') ?? 0);
         if ($insurance_id <= 0) die('Missing insurance_id in session');
@@ -478,10 +478,10 @@ if ($is_editing && !empty($existing_plan['plan_id'])) {
     
     // ── GET /insurance/viewRecords ───────────────────────────────────────────
     public function viewRecords(): void {
-        $db   = new Database();
-        $conn = $db->getConnection();
-        $auth = new Auth($conn);
-        $auth->checkStaffAuth('INSURANCE_STAFF');
+       Guard::staff('INSURANCE_STAFF');
+$db   = new Database();
+$conn = $db->getConnection();
+$auth = new Auth($conn);
 
         $insurance_id = (int)($auth->getSessionData('insurance_id') ?? 0);
         $patient_id   = (int)($_GET['patient_id'] ?? 0);

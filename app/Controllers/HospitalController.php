@@ -4,10 +4,10 @@ class HospitalController {
 
     // ── GET /hospital/dashboard ──────────────────────────────────────────────
     public function dashboard(): void {
-        $db   = new Database();
-        $conn = $db->getConnection();
-        $auth = new Auth($conn);
-        $auth->checkStaffAuth('HOSPITAL_STAFF');
+       Guard::staff('HOSPITAL_STAFF');
+$db   = new Database();
+$conn = $db->getConnection();
+$auth = new Auth($conn);
 
         $hospital_id = (int)($auth->getSessionData('hospital_id') ?? 0);
         if ($hospital_id <= 0) { header('Location: ' . BASE_URL . '/auth/login'); exit; }
@@ -116,10 +116,10 @@ class HospitalController {
 
     // ── GET /hospital/viewRecords ────────────────────────────────────────────
     public function viewRecords(): void {
-        $db   = new Database();
-        $conn = $db->getConnection();
-        $auth = new Auth($conn);
-        $auth->checkStaffAuth('HOSPITAL_STAFF');
+       Guard::staff('HOSPITAL_STAFF');
+$db   = new Database();
+$conn = $db->getConnection();
+$auth = new Auth($conn);
 
         $hospital_id = (int)($auth->getSessionData('hospital_id') ?? 0);
         $patient_id  = (int)($_GET['patient_id'] ?? 0);
@@ -214,10 +214,10 @@ class HospitalController {
 
     // ── GET|POST /hospital/addRecord ─────────────────────────────────────────
     public function addRecord(): void {
-        $db   = new Database();
-        $conn = $db->getConnection();
-        $auth = new Auth($conn);
-        $auth->checkStaffAuth('HOSPITAL_STAFF');
+        Guard::staff('HOSPITAL_STAFF');
+$db   = new Database();
+$conn = $db->getConnection();
+$auth = new Auth($conn);
 
         $hospital_id = (int)($auth->getSessionData('hospital_id') ?? 0);
         $patient_id  = (int)($_GET['patient_id'] ?? 0);
@@ -326,10 +326,10 @@ class HospitalController {
 
     // ── GET|POST /hospital/editRecord ────────────────────────────────────────
     public function editRecord(): void {
-        $db   = new Database();
-        $conn = $db->getConnection();
-        $auth = new Auth($conn);
-        $auth->checkStaffAuth('HOSPITAL_STAFF');
+       Guard::staff('HOSPITAL_STAFF');
+$db   = new Database();
+$conn = $db->getConnection();
+$auth = new Auth($conn);
 
         $hospital_id = (int)($auth->getSessionData('hospital_id') ?? 0);
         $patient_id  = (int)($_GET['patient_id'] ?? 0);
