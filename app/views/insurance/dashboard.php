@@ -22,6 +22,7 @@
  * Charts: $fraud_names, $fraud_admissions, $fraud_claimed, $fraud_pending
  *         $ren_names, $ren_days, $ren_risk
  *         $raise_c, $review_c, $std_c, $high_risk_count, $total_renewal_exp
+ * Claims Summary: $claims_summary, $cs_total, $cs_accepted, $cs_rejected, $cs_pending, $cs_total_amt
  */
 ?>
 <!DOCTYPE html>
@@ -73,6 +74,7 @@
         <li class="nav-item"><a class="nav-link" href="#patients"><i class="fas fa-users mr-1"></i> Patients</a></li>
         <li class="nav-item"><a class="nav-link" href="#addPatient"><i class="fas fa-user-plus mr-1"></i> Add Patient</a></li>
         <li class="nav-item"><a class="nav-link" href="<?= BASE_URL ?>/?url=insurance/policy"><i class="fas fa-file-alt mr-1"></i> Policy</a></li>
+        <li class="nav-item"><a class="nav-link" href="#claimsSummary"><i class="fas fa-file-invoice-dollar mr-1"></i> Claims</a></li>
         <li class="nav-item"><a class="nav-link" href="#riskAnalysis"><i class="fas fa-exclamation-triangle mr-1"></i> Risk Analysis</a></li>
       </ul>
       <ul class="navbar-nav ml-auto">
@@ -446,6 +448,147 @@
     </div>
   </div>
 
+  <!-- ── CLAIMS SUMMARY ──────────────────────────────────────────────────── -->
+  <div class="card shadow mb-4 anchor-offset" id="claimsSummary"
+       style="border-top:4px solid #0ea5e9;">
+    <div class="card-header d-flex align-items-center justify-content-between flex-wrap" style="gap:8px;">
+      <div class="d-flex align-items-center" style="gap:12px;">
+        <div style="width:40px;height:40px;border-radius:12px;background:linear-gradient(135deg,#0ea5e9,#6366f1);
+                    display:flex;align-items:center;justify-content:center;color:#fff;font-size:1rem;
+                    box-shadow:0 6px 14px rgba(14,165,233,.28);flex:0 0 auto;">
+          <i class="fas fa-file-invoice-dollar"></i>
+        </div>
+        <div>
+          <h6 class="m-0 font-weight-bold" style="color:#0369a1;">📊 Claims Summary &amp; Analysis</h6>
+          <small class="text-muted">All submitted claims from your patients · Used for forecast modelling</small>
+        </div>
+      </div>
+      <span class="badge badge-pill px-3 py-2" style="background:#0ea5e9;color:#fff;">
+        <?= $cs_total ?> Total Claims
+      </span>
+    </div>
+
+    <div class="card-body">
+
+      <!-- KPI Row -->
+      <div class="row mb-4">
+        <div class="col-6 col-md-3 mb-3">
+          <div class="card border-0 shadow-sm text-center p-3" style="border-radius:14px;background:linear-gradient(135deg,#dcfce7,#bbf7d0);">
+            <div style="font-size:1.9rem;font-weight:900;color:#15803d;"><?= $cs_accepted ?></div>
+            <div style="font-size:.75rem;font-weight:700;color:#166534;text-transform:uppercase;letter-spacing:.05em;">Accepted</div>
+          </div>
+        </div>
+        <div class="col-6 col-md-3 mb-3">
+          <div class="card border-0 shadow-sm text-center p-3" style="border-radius:14px;background:linear-gradient(135deg,#fee2e2,#fecaca);">
+            <div style="font-size:1.9rem;font-weight:900;color:#b91c1c;"><?= $cs_rejected ?></div>
+            <div style="font-size:.75rem;font-weight:700;color:#991b1b;text-transform:uppercase;letter-spacing:.05em;">Rejected</div>
+          </div>
+        </div>
+        <div class="col-6 col-md-3 mb-3">
+          <div class="card border-0 shadow-sm text-center p-3" style="border-radius:14px;background:linear-gradient(135deg,#fef3c7,#fde68a);">
+            <div style="font-size:1.9rem;font-weight:900;color:#b45309;"><?= $cs_pending ?></div>
+            <div style="font-size:.75rem;font-weight:700;color:#92400e;text-transform:uppercase;letter-spacing:.05em;">Pending</div>
+          </div>
+        </div>
+        <div class="col-6 col-md-3 mb-3">
+          <div class="card border-0 shadow-sm text-center p-3" style="border-radius:14px;background:linear-gradient(135deg,#e0f2fe,#bae6fd);">
+            <div style="font-size:1.4rem;font-weight:900;color:#0369a1;">
+              EGP <?= number_format($cs_total_amt, 0) ?>
+            </div>
+            <div style="font-size:.75rem;font-weight:700;color:#075985;text-transform:uppercase;letter-spacing:.05em;">Accepted Amount</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Acceptance rate mini bar -->
+      <?php if ($cs_total > 0):
+        $accept_pct = round($cs_accepted / $cs_total * 100);
+        $reject_pct = round($cs_rejected / $cs_total * 100);
+        $pending_pct = 100 - $accept_pct - $reject_pct;
+      ?>
+      <div class="mb-4">
+        <div class="d-flex justify-content-between mb-1" style="font-size:.8rem;font-weight:700;">
+          <span>Claims Distribution</span>
+          <span><?= $accept_pct ?>% Accepted &middot; <?= $reject_pct ?>% Rejected &middot; <?= $pending_pct ?>% Pending</span>
+        </div>
+        <div class="progress" style="height:10px;border-radius:999px;overflow:hidden;">
+          <div class="progress-bar" style="width:<?= $accept_pct ?>%;background:#22c55e;" title="Accepted"></div>
+          <div class="progress-bar" style="width:<?= $reject_pct ?>%;background:#ef4444;" title="Rejected"></div>
+          <div class="progress-bar" style="width:<?= $pending_pct ?>%;background:#f59e0b;" title="Pending"></div>
+        </div>
+      </div>
+      <?php endif; ?>
+
+      <!-- Claims table -->
+      <?php if (!$claims_summary): ?>
+        <div class="text-center text-muted py-4">
+          <i class="fas fa-inbox fa-2x mb-2"></i><br>No claims submitted by your patients yet.
+        </div>
+      <?php else: ?>
+        <div class="table-responsive">
+          <table class="table table-hover table-sm mb-0" style="font-size:.88rem;">
+            <thead style="background:linear-gradient(90deg,#f0f9ff,#e0f2fe);">
+              <tr>
+                <th style="width:60px;">#ID</th>
+                <th>Patient</th>
+                <th>Service</th>
+                <th class="text-right">Amount (EGP)</th>
+                <th class="text-center">Status</th>
+                <th>Date</th>
+                <th>Rejection Reason</th>
+              </tr>
+            </thead>
+            <tbody>
+              <?php foreach ($claims_summary as $cs): ?>
+              <?php
+                $cst   = strtolower($cs['claim_status'] ?? '');
+                $isAcc = ($cst === 'accepted' || $cst === 'approved');
+                $isRej = ($cst === 'rejected');
+                $pillStyle = $isAcc
+                    ? 'background:#dcfce7;color:#15803d;'
+                    : ($isRej ? 'background:#fee2e2;color:#b91c1c;' : 'background:#fef3c7;color:#b45309;');
+                $pillIcon  = $isAcc ? 'check-circle' : ($isRej ? 'times-circle' : 'clock');
+              ?>
+              <tr>
+                <td class="text-muted font-weight-bold">#<?= (int)$cs['claim_id'] ?></td>
+                <td>
+                  <span class="font-weight-bold"><?= htmlspecialchars($cs['patient_name'], ENT_QUOTES, 'UTF-8') ?></span>
+                  <br><small class="text-muted">ID <?= (int)$cs['patient_id'] ?></small>
+                </td>
+                <td><?= htmlspecialchars($cs['service_name'], ENT_QUOTES, 'UTF-8') ?></td>
+                <td class="text-right font-weight-bold"><?= number_format((float)$cs['claim_amount'], 2) ?></td>
+                <td class="text-center">
+                  <span style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;
+                               border-radius:999px;font-size:.75rem;font-weight:800;<?= $pillStyle ?>">
+                    <i class="fas fa-<?= $pillIcon ?>"></i>
+                    <?= htmlspecialchars(ucfirst($cs['claim_status'] ?? 'Pending'), ENT_QUOTES, 'UTF-8') ?>
+                  </span>
+                </td>
+                <td class="text-muted">
+                  <?= $cs['created_at'] ? date('d M Y', strtotime($cs['created_at'])) : '—' ?>
+                </td>
+                <td>
+                  <?php if ($isRej && !empty($cs['rejection_reason'])): ?>
+                    <small style="color:#7f1d1d;"><?= htmlspecialchars($cs['rejection_reason'], ENT_QUOTES, 'UTF-8') ?></small>
+                  <?php else: ?>
+                    <span class="text-muted">—</span>
+                  <?php endif; ?>
+                </td>
+              </tr>
+              <?php endforeach; ?>
+            </tbody>
+          </table>
+        </div>
+        <div class="text-muted mt-2" style="font-size:.78rem;">
+          <i class="fas fa-info-circle mr-1"></i>
+          Showing the most recent <?= count($claims_summary) ?> claims. Accepted/Rejected breakdown feeds directly into your ML forecast model.
+        </div>
+      <?php endif; ?>
+
+    </div>
+  </div>
+  <!-- ── /CLAIMS SUMMARY ── -->
+
   <!-- SMART RISK ANALYSIS -->
   <div id="riskAnalysis" class="anchor-offset mb-3">
     <div class="d-flex align-items-center mb-3" style="gap:12px;">
@@ -652,6 +795,8 @@
       <?php endif; ?>
     </div>
   </div><!-- /riskAnalysis -->
+
+
 
 </div><!-- /container-fluid -->
 

@@ -234,6 +234,56 @@ $auth = new Auth($conn);
         $high_risk_count   = $raise_c;
         $total_renewal_exp = array_sum(array_column($renewal_patients, 'total_claimed'));
 
+        // ── CLAIMS SUMMARY (for insurance forecast analysis) ──────────────────
+        // Fetches all claims for this insurance company's patients with full detail.
+        // Visible only to the insurance — patients see their own claims separately.
+        $claims_summary_stmt = $conn->prepare("
+            SELECT
+                c.claim_id,
+                c.claim_amount,
+                c.claim_status,
+                c.rejection_reason,
+                c.created_at,
+                p.full_name   AS patient_name,
+                p.patient_id,
+                CASE c.service_id
+                    WHEN 1 THEN 'Checkup / Consultation'
+                    WHEN 2 THEN 'Operations / Surgery'
+                    WHEN 3 THEN 'Maternity Care'
+                    WHEN 4 THEN 'Dental Services'
+                    WHEN 5 THEN 'Optical Services'
+                    ELSE        'Unknown Service'
+                END AS service_name
+            FROM claims c
+            INNER JOIN patients p ON p.patient_id = c.patient_id
+            WHERE c.insurance_id = ?
+            ORDER BY c.claim_id DESC
+            LIMIT 100
+        ");
+        $claims_summary = [];
+        if ($claims_summary_stmt) {
+            $claims_summary_stmt->bind_param('i', $insurance_id);
+            $claims_summary_stmt->execute();
+            $claims_summary = $claims_summary_stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+            $claims_summary_stmt->close();
+        }
+
+        // KPI aggregates for the claims summary panel
+        $cs_total    = count($claims_summary);
+        $cs_accepted = 0; $cs_rejected = 0; $cs_pending = 0; $cs_total_amt = 0.0;
+        foreach ($claims_summary as $cs_row) {
+            $st = strtolower($cs_row['claim_status'] ?? '');
+            if ($st === 'accepted' || $st === 'approved') {
+                $cs_accepted++;
+                $cs_total_amt += (float)($cs_row['claim_amount'] ?? 0); // accepted only
+            } elseif ($st === 'rejected') {
+                $cs_rejected++;
+            } else {
+                $cs_pending++;
+            }
+        }
+        // ─────────────────────────────────────────────────────────────────────
+
         require_once ROOT . '/app/views/insurance/dashboard.php';
         $db->close();
     }

@@ -63,12 +63,11 @@ class Insurance {
     
     public function getKPICasesThisMonth() {
         $stmt = $this->conn->prepare("
-            SELECT COUNT(DISTINCT mr.record_id)
-            FROM medical_records mr
-            INNER JOIN patients p ON p.patient_id = mr.patient_id
-            WHERE p.insurance_id = ?
-              AND YEAR(mr.created_at) = YEAR(CURDATE())
-              AND MONTH(mr.created_at) = MONTH(CURDATE())
+            SELECT COUNT(DISTINCT c.claim_id)
+            FROM claims c
+            WHERE c.insurance_id = ?
+              AND YEAR(c.created_at) = YEAR(CURDATE())
+              AND MONTH(c.created_at) = MONTH(CURDATE())
         ");
         $stmt->bind_param("i", $this->insurance_id);
         $stmt->execute();
