@@ -356,6 +356,74 @@ $auth = new Auth($conn);
         $db->close();
     }
 
+    // ── GET|POST /insurance/editPatientPolicy ─────────────────────────────────
+    public function editPatientPolicy(): void {
+        Guard::staff('INSURANCE_STAFF');
+        $db   = new Database();
+        $conn = $db->getConnection();
+        $auth = new Auth($conn);
+
+        $insurance_id = (int)($auth->getSessionData('insurance_id') ?? 0);
+        $patient_id   = (int)($_GET['patient_id'] ?? 0);
+
+        if ($insurance_id <= 0) die('Missing insurance session.');
+        if ($patient_id <= 0)   die('Invalid patient ID.');
+
+        $policyObj = new PatientPolicy($conn);
+        $policy    = $policyObj->loadByPatientId($patient_id);
+
+        if (!$policy)                                       die('Policy not found for this patient.');
+        if ((int)$policy['insurance_id'] !== $insurance_id) die('Access denied.');
+
+        $patient_policy_id = (int)$policy['patient_policy_id'];
+
+        $patientObj = new Patient($conn);
+        if (!$patientObj->loadById($patient_id)) die('Patient not found.');
+
+        $insurancePlanObj = new InsurancePlan($conn);
+        $plans            = $insurancePlanObj->getPlansByInsurance($insurance_id);
+
+        $insuranceObj = new Insurance($conn);
+        $insuranceObj->loadById($insurance_id);
+        $insurance_name = $insuranceObj->getName();
+
+        $success = ''; $error = '';
+
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            $plan_id       = (int)($_POST['insurance_plan_id'] ?? 0);
+            $policy_number = trim($_POST['policy_number'] ?? '');
+            $start_date    = trim($_POST['start_date']    ?? '');
+            $end_date      = trim($_POST['end_date']      ?? '');
+            $status        = trim($_POST['status']        ?? 'active');
+
+            if ($plan_id <= 0)        { $error = 'Please select a plan.'; }
+            elseif ($policy_number === '') { $error = 'Policy number is required.'; }
+            elseif ($start_date === '')   { $error = 'Start date is required.'; }
+            elseif (!$insurancePlanObj->validatePlanBelongsToInsurance($plan_id, $insurance_id)) {
+                $error = 'Invalid plan selected.';
+            } else {
+                $policyObj->setPatientPolicyId($patient_policy_id);
+                $policyObj->setInsuranceId($insurance_id);
+                $policyObj->setInsurancePlanId($plan_id);
+                $policyObj->setPolicyNumber($policy_number);
+                $policyObj->setStartDate($start_date);
+                $policyObj->setEndDate($end_date === '' ? null : $end_date);
+                $policyObj->setStatus($status);
+
+                if ($policyObj->update()) {
+                    $success = 'Policy updated successfully ✅';
+                    // Reload policy to reflect saved values in the form
+                    $policy  = $policyObj->loadById($patient_policy_id);
+                } else {
+                    $error = $policyObj->getLastError() ?: 'Failed to update policy. Please try again.';
+                }
+            }
+        }
+
+        require_once ROOT . '/app/views/insurance/editPatientPolicy.php';
+        $db->close();
+    }
+
     // ── GET /insurance/policy ────────────────────────────────────────────────
     public function policy(): void {
         Guard::staff('INSURANCE_STAFF');

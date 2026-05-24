@@ -34,6 +34,7 @@ class PatientPolicy {
     }
 
     // ───────────── Setters ─────────────
+    public function setPatientPolicyId($id)  { $this->patient_policy_id = $id; }
     public function setPatientId($id)       { $this->patient_id = $id; }
     public function setInsuranceId($id)     { $this->insurance_id = $id; }
     public function setInsurancePlanId($id) { $this->insurance_plan_id = $id; }
@@ -182,6 +183,84 @@ class PatientPolicy {
 
         $stmt->close();
 
+        return $result;
+    }
+
+    // ───────────── Load Policy by patient_policy_id ─────────────
+    public function loadById($patient_policy_id) {
+
+        $stmt = $this->conn->prepare("
+            SELECT
+                pp.patient_policy_id,
+                pp.patient_id,
+                pp.insurance_id,
+                pp.insurance_plan_id,
+                pp.policy_number,
+                pp.start_date,
+                pp.end_date,
+                pp.status
+            FROM patient_policy pp
+            WHERE pp.patient_policy_id = ?
+            LIMIT 1
+        ");
+
+        $stmt->bind_param("i", $patient_policy_id);
+        $stmt->execute();
+        $result = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+
+        if ($result) {
+            $this->patient_policy_id = $result['patient_policy_id'];
+            $this->patient_id        = $result['patient_id'];
+            $this->insurance_id      = $result['insurance_id'];
+            $this->insurance_plan_id = $result['insurance_plan_id'];
+            $this->policy_number     = $result['policy_number'];
+            $this->start_date        = $result['start_date'];
+            $this->end_date          = $result['end_date'];
+            $this->status            = $result['status'];
+        }
+
+        return $result;
+    }
+
+    // ───────────── Update Full Policy ─────────────
+    public function update() {
+
+        $end_date = $this->end_date; // may be null
+
+        $stmt = $this->conn->prepare("
+            UPDATE patient_policy
+            SET insurance_plan_id = ?,
+                policy_number     = ?,
+                start_date        = ?,
+                end_date          = ?,
+                status            = ?
+            WHERE patient_policy_id = ?
+              AND insurance_id      = ?
+            LIMIT 1
+        ");
+
+        $stmt->bind_param(
+            "issssis",
+            $this->insurance_plan_id,
+            $this->policy_number,
+            $this->start_date,
+            $end_date,
+            $this->status,
+            $this->patient_policy_id,
+            $this->insurance_id
+        );
+
+        try {
+            $result = $stmt->execute();
+        } catch (mysqli_sql_exception $e) {
+            $stmt->close();
+            $this->last_error = 'Database error: ' . $e->getMessage();
+            error_log('[PatientPolicy::update] DB error: ' . $e->getMessage());
+            return false;
+        }
+
+        $stmt->close();
         return $result;
     }
 }

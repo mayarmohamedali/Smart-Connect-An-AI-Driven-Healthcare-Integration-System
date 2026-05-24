@@ -266,6 +266,7 @@ class Patient {
                 p.gender,
                 p.address,
                 p.insurance_id,
+                pp.patient_policy_id,
                 pp.policy_number,
                 pp.start_date,
                 pp.end_date,

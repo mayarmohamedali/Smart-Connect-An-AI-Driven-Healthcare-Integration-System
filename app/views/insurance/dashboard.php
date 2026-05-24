@@ -434,9 +434,17 @@
                     </td>
                     <td><?= Validator::sanitizeInput($p['policy_number'] ?? '—') ?></td>
                     <td>
-                      <a class="btn btn-sm btn-outline-success" href="<?= BASE_URL ?>/?url=insurance/addPolicy&patient_id=<?= (int)$p['patient_id'] ?>">
-                        <i class="fas fa-plus"></i> Add Policy
-                      </a>
+                      <?php if (!empty($p['policy_number'])): ?>
+                        <a class="btn btn-sm btn-outline-primary mr-1"
+                           href="<?= BASE_URL ?>/?url=insurance/editPatientPolicy&patient_id=<?= (int)$p['patient_id'] ?>">
+                          <i class="fas fa-edit"></i> Edit Policy
+                        </a>
+                      <?php else: ?>
+                        <a class="btn btn-sm btn-outline-success"
+                           href="<?= BASE_URL ?>/?url=insurance/addPolicy&patient_id=<?= (int)$p['patient_id'] ?>">
+                          <i class="fas fa-plus"></i> Add Policy
+                        </a>
+                      <?php endif; ?>
                     </td>
                   </tr>
                 <?php endforeach; endif; ?>
