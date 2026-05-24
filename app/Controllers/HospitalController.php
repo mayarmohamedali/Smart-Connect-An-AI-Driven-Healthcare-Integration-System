@@ -95,7 +95,12 @@ $auth = new Auth($conn);
                 COALESCE(mr.chest_pain, 0)                       AS Chest_Pain,
                 COALESCE(mr.shortness_of_breath, 0)              AS Shortness_of_Breath,
                 COALESCE(mr.headache, 0)                         AS Headache,
-                COALESCE(mr.month, MONTH(CURDATE()))             AS Month
+                COALESCE(mr.month, MONTH(CURDATE()))             AS Month,
+                COALESCE(
+                    NULLIF(TRIM(mr.disease_category), ''),
+                    NULLIF(TRIM(mr.diagnosis), ''),
+                    'Unknown'
+                )                                                AS Disease_Category
             FROM medical_records mr
             INNER JOIN patients p 
                 ON p.patient_id = mr.patient_id
@@ -142,6 +147,7 @@ $auth = new Auth($conn);
                 'Shortness_of_Breath' => (float)$row['Shortness_of_Breath'],
                 'Headache'            => (int)$row['Headache'],
                 'Month'               => (int)$row['Month'],
+                'Disease_Category'    => (string)$row['Disease_Category'],
             ];
         }
 
@@ -164,7 +170,58 @@ $auth = new Auth($conn);
         $live_forecast = [];
 
         if ($api_alive) {
-            $live_forecast = $this->buildNextMonthSingleForecast($calendar, $records_this_month);
+            // Build the PHP-side forecast (disease + severity from hospital calendar)
+            $php_forecast = $this->buildNextMonthSingleForecast($calendar, $records_this_month);
+
+            // Call Flask ML API to get real confidence_score from predict_proba
+            $flask_confidence_score = 0;
+            $flask_confidence_label = 'N/A';
+            $flask_data = [];  // initialise so it is always defined below
+            if (!empty($patients_for_forecast)) {
+                $ch = curl_init('http://127.0.0.1:5000/api/hospital/forecast');
+                curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                curl_setopt($ch, CURLOPT_TIMEOUT, 5);
+                curl_setopt($ch, CURLOPT_POST, true);
+                curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
+                curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode(['patients' => $patients_for_forecast, 'min_patients' => 1]));
+                $flask_response = curl_exec($ch);
+                $flask_http     = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                curl_close($ch);
+                if ($flask_response && $flask_http === 200) {
+                    $flask_data = json_decode($flask_response, true);
+                    if (is_array($flask_data) && ($flask_data['status'] ?? '') === 'ok') {
+                        $flask_confidence_score = (float)($flask_data['confidence_score'] ?? 0);
+                        $flask_confidence_label = (string)($flask_data['confidence_label'] ?? 'N/A');
+                    }
+                }
+            }
+
+            // Flask now uses actual doctor-recorded Disease_Category (strategy 1)
+            // or ML as fallback (strategy 2). Trust Flask when status=ok.
+            if (is_array($flask_data) && ($flask_data['status'] ?? '') === 'ok') {
+                $next_month_n    = (int)date('n') % 12 + 1;
+                $next_month_name = date('M', mktime(0,0,0,$next_month_n,1));
+                $live_forecast = [
+                    'status'             => 'ok',
+                    'source'             => $flask_data['source'] ?? 'live_model',
+                    'predicted_month'    => $next_month_n,
+                    'month_name'         => $next_month_name,
+                    'dominant_disease'   => $flask_data['dominant_disease'] ?? $php_forecast['dominant_disease'],
+                    'dominant_display'   => $flask_data['dominant_display']  ?? $php_forecast['dominant_display'],
+                    'severity'           => $flask_data['severity']          ?? $php_forecast['severity'],
+                    'recommendations'    => $flask_data['recommendations']   ?? $php_forecast['recommendations'],
+                    'total_patients'     => $flask_data['total_patients']    ?? $records_this_month,
+                    'records_this_month' => $records_this_month,
+                    'confidence_score'   => $flask_confidence_score,
+                    'confidence_label'   => $flask_confidence_label,
+                ];
+            } else {
+                // Flask did not respond with ok - use PHP calendar forecast
+                $live_forecast = array_merge($php_forecast, [
+                    'confidence_score' => $flask_confidence_score,
+                    'confidence_label' => $flask_confidence_label,
+                ]);
+            }
         }
 
         require_once ROOT . '/app/views/hospital/dashboard.php';
@@ -221,6 +278,15 @@ $auth = new Auth($conn);
             $rid = (int)($_POST['record_id'] ?? 0);
 
             if ($rid > 0) {
+                // Delete related claims first to satisfy foreign key constraint
+                $delClaims = $conn->prepare("
+                    DELETE FROM claims WHERE record_id = ?
+                ");
+                $delClaims->bind_param('i', $rid);
+                $delClaims->execute();
+                $delClaims->close();
+
+                // Now delete the medical record safely
                 $del = $conn->prepare("
                     DELETE FROM medical_records 
                     WHERE record_id = ? 
@@ -509,9 +575,53 @@ $auth = new Auth($conn);
     }
 
     /*
-        4. If the hospital has no records at all.
+        4. If the hospital has no records at all, fall back to the global
+           HISTORICAL_BASELINE from the Flask API rather than showing "Healthy / No Records".
+           This ensures the epidemic alert is never suppressed just because a hospital
+           has not yet entered data for the current period.
     */
     if (!$entry) {
+        // Try to pull the historical baseline for next month from Flask.
+        // Fetch historical baseline from Flask API via cURL
+        $hist_result = [];
+        $hist_ch = curl_init('http://127.0.0.1:5000/api/hospital/historical?month=' . $next_month_n);
+        curl_setopt_array($hist_ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT        => 5,
+            CURLOPT_CONNECTTIMEOUT => 3,
+            CURLOPT_HTTPHEADER     => ['Accept: application/json'],
+        ]);
+        $hist_raw = curl_exec($hist_ch);
+        $hist_http = curl_getinfo($hist_ch, CURLINFO_HTTP_CODE);
+        curl_close($hist_ch);
+        if ($hist_raw && $hist_http === 200) {
+            $decoded = json_decode($hist_raw, true);
+            if (is_array($decoded)) {
+                $hist_result = $decoded;
+            }
+        }
+
+        $hist_disease = $hist_result['dominant_disease'] ?? null;
+        $hist_display = $hist_result['dominant_display']  ?? null;
+        $hist_sev     = $hist_result['severity']          ?? 'medium';
+        $hist_recs    = $hist_result['recommendations']   ?? ['Prepare hospital based on seasonal epidemic patterns.'];
+
+        if ($hist_disease && strtolower($hist_disease) !== 'no records') {
+            return [
+                'status'             => 'ok',
+                'source'             => 'historical_fallback',
+                'predicted_month'    => $next_month_n,
+                'month_name'         => $next_month_name,
+                'dominant_disease'   => $hist_disease,
+                'dominant_display'   => $hist_display ?? str_replace('_', ' ', $hist_disease),
+                'severity'           => $hist_sev,
+                'recommendations'    => (array)$hist_recs,
+                'total_patients'     => 0,
+                'records_this_month' => $records_this_month
+            ];
+        }
+
+        // Last resort fallback (Flask unreachable and no records).
         return [
             'status'             => 'ok',
             'source'             => 'hospital_database',

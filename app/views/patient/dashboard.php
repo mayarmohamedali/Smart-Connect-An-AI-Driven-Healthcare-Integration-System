@@ -366,6 +366,11 @@ function rec_get($rec, string $key, $default = null) {
               Based on number of clinical thresholds matched in your latest medical record
             </small>
           </div>
+          <?php else: ?>
+          <div class="mt-3" style="font-size:.78rem;color:rgba(255,255,255,0.6);">
+            <i class="fas fa-info-circle mr-1"></i>
+            Model confidence unavailable — no medical record on file yet.
+          </div>
           <?php endif; ?>
 
         </div>

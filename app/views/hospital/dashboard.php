@@ -47,7 +47,8 @@ if (!empty($calendar['calendar']) && is_array($calendar['calendar'])) {
 }
 
 // Find upcoming month forecast from live_forecast first, then fallback to calendar.
-$forecast_entry = null;
+$forecast_entry  = null;
+$forecast_source = 'calendar'; // default; set to 'live' when Flask responds
 
 if (!empty($live_forecast) && is_array($live_forecast) && (($live_forecast['status'] ?? '') === 'ok')) {
     $forecast_entry = [
@@ -59,8 +60,11 @@ if (!empty($live_forecast) && is_array($live_forecast) && (($live_forecast['stat
         'recommendations'  => $live_forecast['recommendations'] ?? ['No hospital records available for this month.'],
         'recommendation'   => $live_forecast['recommendations'][0] ?? 'No hospital records available for this month.',
         'case_count'       => $live_forecast['total_patients'] ?? 0,
-        'source'           => $live_forecast['source'] ?? 'hospital_database'
+        'source'           => $live_forecast['source'] ?? 'hospital_database',
+        'confidence_score' => $live_forecast['confidence_score'] ?? 0,
+        'confidence_label' => $live_forecast['confidence_label'] ?? 'N/A',
     ];
+    $forecast_source = 'live';
 }
 
 if (!$forecast_entry) {

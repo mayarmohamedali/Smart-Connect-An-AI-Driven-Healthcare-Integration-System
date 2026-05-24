@@ -85,8 +85,8 @@ DB_CONFIG = {
     "host"       : "127.0.0.1",
     "user"       : "root",
     "password"   : "",
-    "database"   : "smart_connect",
-    "port"       : 3307,
+    "database"   : "smart-connect",
+    "port"       : 3306,
     "cursorclass": pymysql.cursors.DictCursor,
 }
 
@@ -351,6 +351,23 @@ def preprocess_patient_batch(patient_list, scaler, le_feats, features):
     return batch
 
 def predict_next_month_dominant_disease(patient_list, _artifacts, min_patients=5):
+    """
+    Forecast the dominant disease for next month.
+
+    Strategy (in priority order):
+      1. PRIMARY  - Count Disease_Category values already stored in medical_records.
+                    This is the most accurate: it uses actual doctor diagnoses,
+                    not a re-classification of raw vitals.
+      2. FALLBACK - If Disease_Category is absent/all unknown, run the ML classifier.
+      3. BASELINE - If patient count < min_patients, return the historical baseline.
+
+    Why we don't rely on the ML classifier alone:
+      The HistGradientBoosting model was trained on sick hospital patients whose
+      symptom medians are all = 1 (Fever=1, Cough=1, etc.).  Sending vitals with
+      symptoms = 0 (missing / healthy defaults from PHP COALESCE) produces
+      near-certain Chronic_Kidney_Disease predictions for every patient, which
+      is incorrect.  Using Disease_Category directly avoids this problem entirely.
+    """
     model, scaler, le_tgt, le_feats, features = _artifacts
     today           = datetime.date.today()
     next_month_n    = today.month % 12 + 1
@@ -372,6 +389,57 @@ def predict_next_month_dominant_disease(patient_list, _artifacts, min_patients=5
             "source"           : "historical_fallback",
         }
 
+    # ----------------------------------------------------------------
+    # STRATEGY 1: Use Disease_Category directly from medical records
+    # ----------------------------------------------------------------
+    _SKIP_LABELS = {"unknown", "no records", "", "none", "healthy"}
+    known_categories = [
+        str(p.get("Disease_Category", "")).strip()
+        for p in patient_list
+        if str(p.get("Disease_Category", "")).strip().lower() not in _SKIP_LABELS
+    ]
+
+    if known_categories:
+        counts   = pd.Series(known_categories).value_counts()
+        pct      = (counts / len(known_categories) * 100).round(1)
+        dominant = str(counts.index[0])
+
+        confidence_score = round(float(pct.iloc[0]), 1)
+        confidence_label = (
+            "Very High" if confidence_score >= 80 else
+            "High"      if confidence_score >= 60 else
+            "Moderate"  if confidence_score >= 40 else
+            "Low"
+        )
+
+        # Normalise name for dict lookup (spaces -> underscores)
+        dominant_key = dominant.replace(" ", "_")
+
+        return {
+            "status"           : "ok",
+            "message"          : f"Forecast for {next_month_name} - {len(known_categories)} labelled records.",
+            "total_patients"   : len(patient_list),
+            "next_month"       : next_month_name,
+            "dominant_disease" : dominant_key,
+            "dominant_display" : dominant.replace("_", " "),
+            "recommendations"  : DISEASE_RECOMMENDATIONS.get(
+                                    dominant_key,
+                                    DISEASE_RECOMMENDATIONS.get(dominant,
+                                    ["General preparedness recommended."])),
+            "severity"         : DISEASE_SEVERITY.get(
+                                    dominant_key,
+                                    DISEASE_SEVERITY.get(dominant, "medium")),
+            "distribution"     : {str(k): int(v)   for k, v in counts.items()},
+            "distribution_pct" : {str(k): float(v) for k, v in pct.items()},
+            "confidence_score" : confidence_score,
+            "confidence_label" : confidence_label,
+            "source"           : "database_disease_labels",
+        }
+
+    # ----------------------------------------------------------------
+    # STRATEGY 2: ML classifier fallback (no Disease_Category labels)
+    # NOTE: only reliable when real patient vitals are present.
+    # ----------------------------------------------------------------
     try:
         X_batch   = preprocess_patient_batch(patient_list, scaler, le_feats, features)
         preds_enc = model.predict(X_batch)
@@ -380,17 +448,15 @@ def predict_next_month_dominant_disease(patient_list, _artifacts, min_patients=5
         pct       = (counts / len(preds_dis) * 100).round(1)
         dominant  = str(counts.index[0])
 
-        # ── Model confidence via predict_proba (if available) ──
         confidence_score = None
         confidence_label = "N/A"
         try:
             if hasattr(model, "predict_proba"):
-                proba_matrix  = model.predict_proba(X_batch)          # (n_patients, n_classes)
-                mean_proba    = proba_matrix.mean(axis=0)              # average across patients
+                proba_matrix  = model.predict_proba(X_batch)
+                mean_proba    = proba_matrix.mean(axis=0)
                 dom_idx       = list(le_tgt.classes_).index(dominant)
                 confidence_score = round(float(mean_proba[dom_idx]) * 100, 1)
             else:
-                # Fallback: dominant disease share of total predictions
                 confidence_score = round(float(pct.iloc[0]), 1)
         except Exception:
             confidence_score = round(float(pct.iloc[0]), 1)
@@ -404,7 +470,7 @@ def predict_next_month_dominant_disease(patient_list, _artifacts, min_patients=5
 
         return {
             "status"           : "ok",
-            "message"          : f"Forecast for {next_month_name} — {len(patient_list)} patients.",
+            "message"          : f"Forecast for {next_month_name} - {len(patient_list)} patients (ML fallback).",
             "total_patients"   : len(patient_list),
             "next_month"       : next_month_name,
             "dominant_disease" : dominant,
@@ -413,9 +479,9 @@ def predict_next_month_dominant_disease(patient_list, _artifacts, min_patients=5
             "severity"         : DISEASE_SEVERITY.get(dominant, "medium"),
             "distribution"     : {str(k): int(v)   for k, v in counts.items()},
             "distribution_pct" : {str(k): float(v) for k, v in pct.items()},
-            "confidence_score" : confidence_score,   # 0–100 float
+            "confidence_score" : confidence_score,
             "confidence_label" : confidence_label,
-            "source"           : "live_model",
+            "source"           : "ml_classifier_fallback",
         }
     except Exception as ex:
         hist = HISTORICAL_BASELINE.get(next_month_n, {})
@@ -431,7 +497,6 @@ def predict_next_month_dominant_disease(patient_list, _artifacts, min_patients=5
             "distribution_pct" : {},
             "source"           : "historical_fallback",
         }
-
 try:
     _HOSP_ARTIFACTS = load_hospital_artifacts()
     print("✅ Hospital model loaded")

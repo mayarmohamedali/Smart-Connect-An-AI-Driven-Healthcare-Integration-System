@@ -11,7 +11,16 @@ class AuthController {
     exit;
 }
     public function login(): void {
-         Guard::guest();
+        // If already logged in, destroy the session first so the login form always shows
+        if (Guard::isLoggedIn()) {
+            $_SESSION = [];
+            if (ini_get("session.use_cookies")) {
+                $p = session_get_cookie_params();
+                setcookie(session_name(), '', time() - 42000, $p['path'], $p['domain'], $p['secure'], $p['httponly']);
+            }
+            session_destroy();
+            session_start();
+        }
         require_once ROOT . '/app/views/auth/login.php';
     }
 
